@@ -2,27 +2,27 @@
 """Step 5b: Pre-screen repos by description relevance.
 
 Usage:
-  python src/prescreen.py prepare    # Output descriptions to stdout for LLM ranking
-  python src/prescreen.py rank       # Read LLM ranking from stdin, validate, write kept.json
-  python src/prescreen.py --help     # Show usage
+  python sub-skills/gh-score/src/rank_description.py prepare   # Output descriptions for LLM ranking
+  python sub-skills/gh-score/src/rank_description.py rank      # Read LLM ranking from stdin, write kept.json
 
 Workflow:
-  1. Agent runs: `python src/prescreen.py prepare` → gets formatted repo list
+  1. Agent runs: `prepare` → gets formatted repo list
   2. Agent (LLM) ranks by relevance to intent.summary
-  3. Agent feeds ranking back via stdin or pipe to: `python src/prescreen.py rank`
-  4. Script validates format, applies prescreen_keep_ratio, writes kept.json
+  3. Agent feeds ranking back to: `rank`
+  4. Script validates format, applies prescreen_keep_ratio, writes kept.json + llm_scores.json
 """
 
 import json
 import sys
+import tomllib
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+# Navigate up from: sub-skills/gh-score/src/rank_description.py → project root
+ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
 
 def load_config():
     """Load scoring config for prescreen_keep_ratio."""
-    import tomllib
     cfg_path = ROOT / "config.toml"
     with open(cfg_path, "rb") as f:
         raw = tomllib.load(f)
@@ -59,7 +59,7 @@ def prepare() -> None:
     print(f"Keep ratio: {keep_ratio} → top {keep_count} + seeds")
     print(f"Seeds: {sorted(seeds)}")
     print(f"\n=== REPOS (respond with ranked full_name list) ===")
-    print(f"Format: full_name:relevance_score(1-100):reason")
+    print(f"Format: JSON array of [{{\"full_name\": \"...\", \"rank\": 1, \"reason\": \"...\"}}]")
     print()
 
     for i, r in enumerate(repos, 1):
@@ -84,30 +84,17 @@ def rank() -> None:
     keep_ratio = load_config()
     keep_count = max(int(len(fetched["repos"]) * keep_ratio), 1)
 
-    # Read ranking from stdin
     raw_input = sys.stdin.read().strip()
     if not raw_input:
         print("ERROR: No ranking input from stdin", file=sys.stderr)
         sys.exit(1)
 
-    # Parse ranking: expect JSON array of {full_name, rank, reason, score}
+    # Parse ranking: expect JSON array of {full_name, rank, reason}
     try:
         ranking = json.loads(raw_input)
     except json.JSONDecodeError:
-        # Fallback: parse line-by-line "full_name:score:reason"
-        ranking = []
-        for line in raw_input.split("\n"):
-            line = line.strip()
-            if not line or line.startswith("#") or line.startswith("==="):
-                continue
-            parts = line.split(":", 2)
-            if len(parts) >= 2:
-                ranking.append({
-                    "full_name": parts[0].strip(),
-                    "rank": len(ranking) + 1,
-                    "score": int(parts[1].strip()) if parts[1].strip().isdigit() else 50,
-                    "reason": parts[2].strip() if len(parts) > 2 else "",
-                })
+        print("ERROR: Invalid JSON input", file=sys.stderr)
+        sys.exit(1)
 
     if not isinstance(ranking, list):
         print("ERROR: Ranking must be a JSON array", file=sys.stderr)
@@ -127,10 +114,9 @@ def rank() -> None:
     if errors:
         for e in errors:
             print(f"  WARN: {e}", file=sys.stderr)
-        # Don't fail — just log warnings
 
-    # Sort by rank (or score if rank missing)
-    ranking.sort(key=lambda x: x.get("rank", x.get("score", 50)))
+    # Sort by rank (position in list)
+    ranking.sort(key=lambda x: x.get("rank", 999))
 
     # Extract kept repos: top N + seeds
     top_names = [e["full_name"] for e in ranking[:keep_count]]

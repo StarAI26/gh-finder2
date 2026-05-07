@@ -1,28 +1,20 @@
 #!/usr/bin/env python3
-"""Step 7a: LLM scoring pipeline.
+"""Step 7a: LLM ranking for purpose and fit dimensions.
 
-Standardized workflow for LLM to produce purpose_ranking and fit_ranking
-after READMEs have been fetched.
+Standardized workflow: LLM ranks kept repos based on README content.
+LLM only provides ORDER — Python assigns rank by position.
 
 Usage:
-  python3 src/score_llm.py prepare   # Output kept repos + READMEs for LLM scoring
-  python3 src/score_llm.py merge     # Read LLM scores from stdin, merge into llm_scores.json
-
-Workflow:
-  1. Agent runs: `python3 src/score_llm.py prepare` → gets formatted repo + README data
-  2. Agent (LLM) scores each kept repo:
-     - purpose_score(1-100): relevance to user's intent
-     - fit_score(1-100): fit for user's specific scenario
-     - reason: brief explanation
-  3. Agent feeds scores back to: `python3 src/score_llm.py merge`
-  4. Script validates, updates llm_scores.json, ready for validate_llm_scores.py
+  python sub-skills/gh-score/src/rank_readme.py prepare   # Output kept repos + READMEs for LLM ranking
+  python sub-skills/gh-score/src/rank_readme.py merge     # Read LLM orderings from stdin, merge into llm_scores.json
 """
 
 import json
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+# Navigate up from: sub-skills/gh-score/src/rank_readme.py → project root
+ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
 
 def load_fetched():
@@ -63,7 +55,7 @@ def save_llm_scores(data):
 
 
 def prepare() -> None:
-    """Print formatted repo + README data for LLM scoring."""
+    """Print formatted repo + README data for LLM ranking."""
     fetched = load_fetched()
     kept_list = load_kept()
     intent_path = ROOT / "cache" / "intent.json"
@@ -79,13 +71,13 @@ def prepare() -> None:
 
     print(f"=== INTENT ===")
     print(intent_summary)
-    print(f"\n=== SCORING SETTINGS ===")
+    print(f"\n=== RANKING SETTINGS ===")
     print(f"Kept repos: {len(kept_list)}")
-    print(f"Score each repo on two dimensions (1-100):")
-    print(f"  purpose: relevance to user's intent")
-    print(f"  fit: fit for user's specific scenario")
-    print(f"\n=== REPOS (respond with scoring JSON) ===")
-    print(f'Format: JSON array of {{"full_name": "...", "purpose_score": N, "fit_score": N, "reason": "..."}}')
+    print(f"Provide TWO ordered lists (no scores):")
+    print(f"  purpose_order: most→least relevant to user's intent")
+    print(f"  fit_order: best→worst fit for user's specific scenario")
+    print(f"\n=== REPOS (respond with ordering JSON) ===")
+    print(f'Format: {{"purpose_order": [...], "fit_order": [...], "reasons": {{"repo": "explanation"}}}}')
     print()
 
     for name in kept_list:
@@ -111,9 +103,9 @@ def prepare() -> None:
 
 
 def merge() -> None:
-    """Read LLM ranking from stdin, merge into llm_scores.json.
+    """Read LLM orderings from stdin, merge into llm_scores.json.
 
-    LLM only provides ORDER, not scores. Python assigns ranks by position.
+    LLM only provides ORDER — Python assigns rank by position.
 
     Expected input format:
     {

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Step 7a: Validate llm_scores.json completeness.
+"""Validate llm_scores.json completeness before scorer.py runs.
 
 Ensures llm_scores.json has ALL four required keys:
 - prescreen_ranking
@@ -8,15 +8,16 @@ Ensures llm_scores.json has ALL four required keys:
 - fit_ranking
 
 Usage:
-  python src/validate_llm_scores.py
-  python src/validate_llm_scores.py --generate  # Generate template with placeholder rankings
+  python sub-skills/gh-score/src/validate_scores.py
+  python sub-skills/gh-score/src/validate_scores.py --generate  # Generate template with placeholder rankings
 """
 
 import json
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+# Navigate up from: sub-skills/gh-score/src/validate_scores.py → project root
+ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
 REQUIRED_KEYS = ["prescreen_ranking", "kept_for_scoring", "purpose_ranking", "fit_ranking"]
 
@@ -27,7 +28,7 @@ def validate() -> list[str]:
     errors = []
 
     if not path.exists():
-        return ["cache/llm_scores.json not found — run prescreen.py rank first"]
+        return ["cache/llm_scores.json not found — run rank_description.py rank first"]
 
     try:
         data = json.loads(path.read_text(encoding="utf-8"))

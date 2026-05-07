@@ -18,11 +18,11 @@ Step 2: 调用 sub-skills/gh-websearch → WebSearch 补充发现知名项目
 Step 3: 合并 intent.json + websearch 结果 → cache/query.json（单一查询入口）
 Step 4: 校验 query.json → python3 src/validate.py intents
 Step 5: 调用 sub-skills/gh-fetch → Stage 1: metadata only (no READMEs)
-Step 5b: python3 src/prescreen.py prepare → LLM ranks → prescreen.py rank → kept.json + llm_scores.json
+Step 5b: python3 sub-skills/gh-score/src/rank_description.py prepare → LLM ranks → rank → kept.json + llm_scores.json
 Step 5c: python3 sub-skills/gh-fetch/src/fetcher.py --readmes-only --kept-list cache/kept.json
 Step 6: 校验 fetched.json → python3 src/validate.py fetch
-Step 7a: python3 src/score_llm.py prepare → LLM scores → score_llm.py merge → llm_scores.json
-Step 7a-v: python3 src/validate_llm_scores.py → verify 4 keys complete
+Step 7a: python3 sub-skills/gh-score/src/rank_readme.py prepare → LLM orders → merge → llm_scores.json
+Step 7a-v: python3 sub-skills/gh-score/src/validate_scores.py → verify 4 keys complete
 Step 7b: python3 sub-skills/gh-score/src/scorer.py → cache/scored.json
 Step 8: 校验 scored.json → python3 src/validate.py score → 输出最终结果
 ```
@@ -39,6 +39,20 @@ Run the `gh-intents` sub-skill to extract search parameters from the user's requ
 
 - Output: `cache/intent.json`
 - See [sub-skills/gh-intents/SKILL.md](sub-skills/gh-intents/SKILL.md) for the full specification
+
+## Configuration
+
+All parameters live in `config.toml` (project root). Python 3.11+ `tomllib` reads it — zero dependencies, supports `#` comments.
+
+```toml
+[fetch]       # GitHub API: per_page, type limits, rate control, min_stars, retries
+[scoring]     # prescreen_keep_ratio (0.5 = keep top 50%), trust_timeout_sec
+[weights]     # 7 scoring dimensions (sum = 100): purpose(30), fit(20), trust(15), community(10), quality(10), infrastructure(10), momentum(5)
+[thresholds]  # Normalization caps for stars/forks/watchers, trust check limits
+[paths]       # Cache file paths relative to project root
+```
+
+Read via `Config.load()` in `src/common.py`. All scripts use this single entry point.
 
 ### Step 2: gh-websearch
 
@@ -98,14 +112,13 @@ python3 sub-skills/gh-fetch/src/fetcher.py
 
 ```bash
 # 1. Prepare repo descriptions for LLM ranking
-python3 src/prescreen.py prepare
+python3 sub-skills/gh-score/src/rank_description.py prepare
 
 # 2. LLM ranks repos by relevance to intent.summary
-#    Respond with: full_name:relevance_score(1-100):reason (one per line)
-#    OR JSON array: [{"full_name": "...", "rank": 1, "reason": "..."}]
+#    Format: JSON array of [{"full_name": "...", "rank": 1, "reason": "..."}]
 
 # 3. Feed ranking back to script → writes kept.json + llm_scores.json
-python3 src/prescreen.py rank
+python3 sub-skills/gh-score/src/rank_description.py rank
 ```
 
 ### Step 5c: gh-fetch (Stage 2 - READMEs)
@@ -140,23 +153,22 @@ python src/validate.py fetch
 
 #### Step 7a: LLM ranking (standardized)
 
-Same pipeline pattern as Step 5b: `prepare` → LLM orders → `merge`.
+#### Step 7a: LLM ranking (standardized)
 
 ```bash
 # 1. Prepare kept repos + READMEs for LLM ranking
-python3 src/score_llm.py prepare
+python3 sub-skills/gh-score/src/rank_readme.py prepare
 
 # 2. LLM provides TWO ORDERED LISTS (no scores):
 #    Format: {"purpose_order": [...], "fit_order": [...], "reasons": {...}}
 #    - purpose_order: most→least relevant to user's intent
 #    - fit_order: best→worst fit for user's specific scenario
-#    - reasons: optional {repo_name: explanation}
 
 # 3. Feed orderings back to script → appends to llm_scores.json
-python3 src/score_llm.py merge
+python3 sub-skills/gh-score/src/rank_readme.py merge
 
 # 4. Validate completeness
-python3 src/validate_llm_scores.py
+python3 sub-skills/gh-score/src/validate_scores.py
 ```
 
 - See [sub-skills/gh-score/SKILL.md](sub-skills/gh-score/SKILL.md) for the full specification
@@ -201,7 +213,7 @@ Top GitHub Projects for: [intent.summary]
 
 ## Pitfalls
 
-> **⚠️ LLM only ranks, Python scores**: `prescreen.py rank` and `score_llm.py merge` accept ordered lists only — no numeric scores. LLM outputs `[repo-a, repo-b, ...]`, scripts assign rank by position, scorer.py converts to percentile. Never let LLM assign 0-100 scores — position in list IS the ranking signal.
+> **⚠️ LLM only ranks, Python scores**: `rank_description.py rank` and `rank_readme.py merge` accept ordered lists only — no numeric scores. LLM outputs `[repo-a, repo-b, ...]`, scripts assign rank by position, scorer.py converts to percentile. Never let LLM assign 0-100 scores — position in list IS the ranking signal.
 >
 > **⚠️ GITHUB_TOKEN not set** → 60 req/h limit. For >20 repos, expect 403 during README fetch.
 >
