@@ -204,16 +204,42 @@ python3 src/validate.py score
 **校验通过后，必须直接输出最终结果，不要询问用户是否继续**：
 
 ```
-Top GitHub Projects for: [intent.summary]
+# Top GitHub Projects for: [intent.summary]
 
-#1 owner/repo (score: 85.2)
-   URL: https://github.com/owner/repo
-   Evidence: [first line of README]
-   Breakdown: purpose=100, fit=90, community=75, trust=80, quality=70, momentum=60, infrastructure=50
+## 🥇 #1 owner/repo (score: 85.2)
 
-#2 owner/repo (score: 78.1)
-   ...
+**URL**: https://github.com/owner/repo
+**Description**: [项目的一句话描述]
+
+**为什么匹配你的意图**：
+[用 1-2 句话解释该项目如何解决用户的具体问题，结合 README 中的关键信息]
+
+**关键指标**：⭐ 88K | TypeScript | 2025 年 3 月最后更新
+**评分**：purpose=100, fit=90, community=75, trust=80, quality=70, momentum=60, infrastructure=50
+
+---
+
+## 🥈 #2 owner/repo (score: 78.1)
+
+**URL**: https://github.com/owner/repo
+**Description**: [项目描述]
+
+**为什么匹配你的意图**：
+[解释匹配关系]
+
+**关键指标**：⭐ 50K | Python | ...
+
+---
+
+[继续输出前 5-10 个项目]
 ```
+
+**输出规则**：
+- 只输出 **Top 5-10** 项目，不要输出全部
+- 每个项目必须包含 **"为什么匹配你的意图"** 段落 — 这是核心
+- 意图关联解释要具体，结合用户原始需求和项目 README 内容
+- 不要只复述 README 或 description — 要说明 **"这个项目为什么适合你"**
+- 如果某个项目虽然分数高但有关键缺陷（如文档差、停止维护），在解释中说明
 
 ## Pitfalls
 
@@ -245,4 +271,5 @@ Top GitHub Projects for: [intent.summary]
 ## Execution Philosophy
 
 - **先分析再执行**: 遇到问题卡住时，先搞明白根本原因，不要盲目重试。用户偏好先理解问题再动手。
+- **Script ownership**: "Who uses it, owns it." Scripts live where their consumers live. LLM ranking + scoring scripts are under `sub-skills/gh-score/src/` because they're gh-score's responsibility, not pipeline glue.
 - See [references/github-api-query-design.md](references/github-api-query-design.md) for query design principles and why semantic queries fail on GitHub API.
