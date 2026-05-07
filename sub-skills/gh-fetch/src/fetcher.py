@@ -172,7 +172,8 @@ def fetch_releases(full_name: str, headers: dict) -> dict:
 # ─── Repo parsing ────────────────────────────────────────────────────
 
 
-def parse_repo(full_name: str, raw: dict, headers: dict, idx: int, total: int) -> dict:
+def parse_repo(full_name: str, raw: dict, headers: dict, idx: int, total: int,
+               with_readme: bool = True) -> dict:
     """Convert raw Search API item into structured dict per SKILL.md spec."""
     pushed_at = raw.get("pushed_at")
     updated_at = raw.get("updated_at")
@@ -180,10 +181,15 @@ def parse_repo(full_name: str, raw: dict, headers: dict, idx: int, total: int) -
     sys.stderr.write(f"  [{idx}/{total}] {full_name} ... ")
     sys.stderr.flush()
 
-    readme = fetch_readme(full_name, headers)
-    sys.stderr.write(f"README {len(readme)} chars, ")
-    sys.stderr.flush()
-    time.sleep(REQUEST_GAP)
+    readme_text = ""
+    if with_readme:
+        readme_text = fetch_readme(full_name, headers)
+        sys.stderr.write(f"README {len(readme_text)} chars, ")
+        sys.stderr.flush()
+        time.sleep(REQUEST_GAP)
+    else:
+        sys.stderr.write("metadata only, ")
+        sys.stderr.flush()
 
     releases = fetch_releases(full_name, headers)
     has_rel = releases["has_releases"]
@@ -219,7 +225,7 @@ def parse_repo(full_name: str, raw: dict, headers: dict, idx: int, total: int) -
             "default_branch": raw.get("default_branch") or "main",
         },
         "releases": releases,
-        "readme": readme,
+        "readme": readme_text,
     }
 
 
@@ -343,11 +349,11 @@ def main():
 
         time.sleep(REQUEST_GAP)
 
-    print(f"[fetch] {len(seen)} unique repos, fetching READMEs + releases...", file=sys.stderr)
+    print(f"[fetch] {len(seen)} unique repos, fetching metadata (Stage 1: no READMEs)...", file=sys.stderr)
 
     repos = []
     for i, (name, raw) in enumerate(seen.items(), 1):
-        repo = parse_repo(name, raw, headers, i, len(seen))
+        repo = parse_repo(name, raw, headers, i, len(seen), with_readme=False)
         repos.append(repo)
 
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
