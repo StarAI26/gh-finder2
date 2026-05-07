@@ -41,11 +41,11 @@ The script reads `cache/query.json`, executes each query against the GitHub Sear
 
 ### Python Script Behavior (src/fetcher.py)
 
-- Reads queries from `cache/intent.json` (each has `query`, `reason`, `type`: `"websearch"`/`"semantic"`/`"complexity"`)
+- Reads queries from `cache/query.json` (each has `query`, `reason`, `type`: `"websearch"`/`"semantic"`/`"complexity"`)
 - For each query, calls `GET /search/repositories?q=<query>&sort=stars&order=desc&per_page=30`
 - Requires `GITHUB_TOKEN` env var (fail immediately if missing)
 - Deduplicates repos by `full_name`
-- **Seed identification**: First result of every query is a seed repo. For `type: "websearch"` queries, the first result's `full_name` must contain the query string — if not, WARN logged and result is NOT marked as seed. `semantic`/`complexity` queries seed directly without validation.
+- **Seed identification**: First result of every query is a seed repo. For `type: "exact"` or `type: "websearch"` queries, the first result's `full_name` must contain the query string — if not, WARN logged and result is NOT marked as seed. `semantic`/`complexity` queries seed directly without validation.
 - For each unique repo, fetches:
   - `GET /repos/{owner}/{repo}/readme` → README text
   - `GET /repos/{owner}/{repo}/releases?per_page=1` → latest release info (counts via `total_count` header)
@@ -112,7 +112,7 @@ Seed repos are **unconditionally kept** for scoring, even if their description r
 
 **Rule**: First result of every query is a seed. Seed count = query count.
 
-**Validation for `type: "websearch"` queries**: For websearch queries (de facto standard project names), the first result's `full_name` must contain the query string.
+**Validation for `type: "exact"` and `type: "websearch"` queries**: For exact/websearch queries (de facto standard project names), the first result's `full_name` must contain the query string.
 - `"pandoc"` → `"jgm/pandoc"` — matches, becomes seed
 - `"python-docx"` → `"some-fork/unrelated-lib"` — doesn't match, WARN logged, NOT a seed
 - 0 results — query yields nothing, skip
@@ -188,8 +188,14 @@ If validation fails:
 - **Semantic extraction** → LLM does this in `gh-score`
 - **Query refinement** → Agent-driven decision, not automatic
 
+## Related Reference
+
+See [gh-finder2/references/github-api-query-design.md](../../gh-finder2/references/github-api-query-design.md) for query design principles that affect fetcher performance.
+
 ## Pitfalls
 
+> **⚠️ ALL fetch parameters must be in config, not hardcoded.** `per_page`, type limits (`websearch_limit`, `semantic_limit`, `complexity_limit`), `min_stars`, `request_gap`, `max_retries` — all live in `config/scoring.json` under `fetch` section. The fetcher reads via `config.fetch.get(key, default)`. Hardcoding parameters prevents users from tuning behavior.
+>
 > **⚠️ Semantic/complexity queries on GitHub Search API are noisy**: API does substring match + stars sort, not semantic search. `"github project recommendation tool"` matches hospital/movie recommendation projects. `"skill scoring ranking system"` matches ML feature engineering notebooks. These queries inject noise, slow down fetching (every irrelevant repo needs README fetch), and degrade scoring quality. Prefer exact project names from WebSearch.
 >
 > **⚠️ Fetcher is purely serial with no incremental writes**: Must fetch all READMEs before writing `fetched.json`. Network timeout = total loss. Consider periodic checkpoint writes.
@@ -197,3 +203,5 @@ If validation fails:
 > **⚠️ Large READMEs block execution**: Some repos (e.g. auto-generated skill directories) have READMEs >100KB. Transfer + base64 decode takes disproportionate time. Consider size limits or timeouts per README.
 >
 > **⚠️ SSL `UNEXPECTED_EOF_WHILE_READING` errors on GitHub API**: Container Python 3.13.5 sometimes hits SSL EOF errors on GitHub API calls. These are transient — catch `ssl.SSLError` and retry, don't abort.
+>
+> **⚠️ Fetcher reads `cache/query.json` NOT `cache/intent.json`**: The merged query file is the input. Running fetcher with only `intent.json` will fail because `config.path("query")` resolves to `cache/query.json`.

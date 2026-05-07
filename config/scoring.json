@@ -26,5 +26,16 @@
   },
   "scoring": {
     "trust_timeout_sec": 10
+  },
+  "fetch": {
+    "per_page": 30,
+    "exact_limit": 1,
+    "websearch_limit": 1,
+    "semantic_limit": 5,
+    "complexity_limit": 3,
+    "request_gap_with_token": 0.1,
+    "request_gap_without_token": 1.0,
+    "min_stars": 2,
+    "max_retries": 3
   }
 }

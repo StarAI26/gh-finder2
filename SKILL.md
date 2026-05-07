@@ -42,6 +42,8 @@ Run the `gh-websearch` sub-skill to discover latest projects via WebSearch.
 - Skip: low-star hobby projects with no discussion
 - Limit: max 2 discovered names
 
+> **⚠️ Pitfall: Do NOT use DuckDuckGo/Google HTML scraping as a substitute for built-in websearch.** If the LLM platform provides a native websearch tool, use it. Custom HTML scraping (DuckDuckGo HTML interface) is a fallback only when no built-in search is available and the user has consented.
+
 ### Step 3: Merge → query.json
 
 Merge gh-intents queries with gh-websearch discoveries into a single file:
@@ -75,8 +77,8 @@ python3 src/validate.py intents
 - `intent.summary` 不能为空
 - `queries` 数组 3-8 个元素
 - 每个 query 对象必须有 `query`、`reason`、`type` 字段
-- `type` 必须是 `"websearch"` / `"semantic"` / `"complexity"` 之一
-- websearch ≤3，semantic ≤3，complexity ≤2
+- `type` 必须是 `"exact"` / `"websearch"` / `"semantic"` / `"complexity"` 之一
+- exact ≤3，websearch ≤3，semantic ≤3，complexity ≤2
 - 每个 query ≤3 个词
 - `reason` 必须具体，不能是通用描述
 
@@ -180,7 +182,25 @@ Top GitHub Projects for: [intent.summary]
    ...
 ```
 
+## Pitfalls
+
+> **⚠️ SKILL.md vs script mismatch**: `validate.py query` → `validate.py intents`。用 `python3` 而非 `python`。
+>
+> **⚠️ Fetcher 串行抓取 README，大 README 拖垮整体**：`dmgrok/agent_skills_directory` 的 README 有 158KB（自动生成 skill 目录索引），传输 + base64 解码耗时远超正常 README。应限制无关项目数量，或并发抓取。
+>
+> **⚠️ Fetcher 无增量写入，中途超时 = 全部丢失**：必须全部抓完才写 `fetched.json`，网络超时导致工作白费。
+>
+> **⚠️ SSL `UNEXPECTED_EOF_WHILE_READING` errors on GitHub API**：Container Python 3.13.5 有时在 GitHub API 调用时遇到 SSL EOF 错误。这些是瞬态的 — catch `ssl.SSLError` 并重试，不要 abort。
+>
+> **⚠️ 所有 fetch 参数必须放在 config/scoring.json**：`PER_PAGE`、`MIN_STARS`、`REQUEST_GAP`、各类查询的 top N 限制等都不能硬编码在 fetcher.py 中。统一通过 `config.fetch` 读取，确保可配置性。
+>
+> **⚠️ Semantic/complexity queries on GitHub API are noisy**: API 做 substring match + stars 排序，不是语义搜索。`"github project recommendation"` 匹配医院推荐系统；`"skill scoring ranking"` 匹配 ML notebook。Semantic 查询引入噪音，拖慢 fetcher。优先使用 `websearch` 类型的精准项目名。详见 [references/github-api-query-design.md](references/github-api-query-design.md)。
+
 ## Error Recovery
+
+> **⚠️ 先分析再执行**: 遇到问题卡住时，先搞明白根本原因，不要盲目重试。用户明确要求"先搞明白问题"再动手。
+>
+> **⚠️ 所有参数必须在 config 中**: fetch 相关参数（per_page、类型限制、重试次数等）必须在 `config/scoring.json` 中配置，禁止硬编码。
 
 | Step | Failure | Recovery |
 |------|---------|----------|
@@ -192,3 +212,8 @@ Top GitHub Projects for: [intent.summary]
 | fetched validation | 字段缺失 | 重跑 fetcher |
 | gh-score | LLM 输出格式错 | 指出问题，重新排名 |
 | scored validation | evidence 不在 README 中 | 重做 scoring |
+
+## Execution Philosophy
+
+- **先分析再执行**: 遇到问题卡住时，先搞明白根本原因，不要盲目重试。用户偏好先理解问题再动手。
+- See [references/github-api-query-design.md](references/github-api-query-design.md) for query design principles and why semantic queries fail on GitHub API.

@@ -133,7 +133,8 @@ One sentence max. Don't lecture.
 
 → Extract thinking:
 - 用户选了"表格完整保留" → 拆解最难步骤：合并单元格（Markdown 原生不支持，必须降级成 HTML）
-- websearch queries: "python-docx"（读 docx 标准库）、"mammoth"（docx→md 知名项目）、"markitdown"（Microsoft 通用文档转 md）、"pandoc"（通用转换器）
+- exact queries: "python-docx"（读 docx 标准库）、"mammoth"（docx→md 知名项目）
+- websearch queries: "markitdown"（Microsoft 通用文档转 md）、"pandoc"（通用转换器）
 - semantic queries: "docx to markdown"（核心意图）、"word document parser"（更广的 docx 解析项目发现）
 - complexity query: "docx table markdown"（最难步骤：表格结构转 markdown）
 
@@ -155,10 +156,10 @@ After the conversation (or direct extraction), output this structured JSON:
     "insights": "Important context the user didn't mention but you discovered. Empty string if none"
   },
   "queries": [
-    { "query": "python-docx", "reason": "De facto standard for reading docx in Python", "type": "websearch" },
-    { "query": "mammoth", "reason": "Well-known docx-to-markdown library", "type": "websearch" },
-    { "query": "markitdown", "reason": "Microsoft universal document-to-markdown converter", "type": "websearch" },
-    { "query": "pandoc", "reason": "Universal document converter", "type": "websearch" },
+    { "query": "python-docx", "reason": "De facto standard for reading docx in Python", "type": "exact" },
+    { "query": "mammoth", "reason": "Well-known docx-to-markdown library", "type": "exact" },
+    { "query": "markitdown", "reason": "Microsoft universal document-to-markdown converter, discovered via WebSearch", "type": "websearch" },
+    { "query": "pandoc", "reason": "Universal document converter, discovered via WebSearch", "type": "websearch" },
     { "query": "docx to markdown", "reason": "Core intent: format conversion", "type": "semantic" },
     { "query": "word document parser", "reason": "Broader discovery: Word parsing libs", "type": "semantic" },
     { "query": "docx table markdown", "reason": "Hardest step: preserving tables in conversion", "type": "complexity" }
@@ -167,14 +168,16 @@ After the conversation (or direct extraction), output this structured JSON:
 ```
 
 **Query type**:
-- `"websearch"`: The query is a known de facto standard project name discovered via LLM knowledge or WebSearch (e.g., `"python-docx"`, `"mammoth"`, `"pandoc"`). GitHub API 返回的首条结果将作为种子项目。
+- `"exact"`: The query is a known de facto standard project name specified by the user (e.g., `"python-docx"`, `"mammoth"`). GitHub API 返回的首条结果将作为种子项目。
+- `"websearch"`: The query is a project name discovered via WebSearch (e.g., `"markitdown"`, `"pandoc"`). GitHub API 返回的首条结果将作为种子项目。
 - `"semantic"`: The query describes the user's intent/functionally (e.g., `"docx to markdown"`). GitHub API 返回的首条结果将作为种子项目。
 - `"complexity"`: The query targets the **hardest step** of implementing the user's intent. Think: if the user's goal were "把大象装冰箱" (open door → stuff elephant → close door), which step is the bottleneck? Search that. GitHub API 返回的首条结果将作为种子项目。
 
 **Save**: Write the JSON to `cache/intent.json` (relative to gh-finder2 root, overwrite, file contains only JSON — no extra text).
 
 **Query Rules**:
-- `queries` array: 5-8 queries total. 2-3 websearch + 2-3 semantic + 1-2 complexity.
+- `queries` array: 5-8 queries total. 2-3 exact + 1-2 websearch + 2-3 semantic + 1-2 complexity.
 - Each query ≤3 words.
-- De facto standard project names **must appear as standalone queries** with `"type": "websearch"` (e.g., `"python-docx"`), never combined with other keywords. GitHub API uses AND logic — `"python-docx markdown"` misses the project itself.
-- Exclusions baked into broad queries only (e.g., `"docx parser -online"`), never on websearch entity names.
+- De facto standard project names **must appear as standalone queries** with `"type": "exact"` (e.g., `"python-docx"`), never combined with other keywords. GitHub API uses AND logic — `"python-docx markdown"` misses the project itself.
+- WebSearch discovered names use `"type": "websearch"` with reason mentioning source.
+- Exclusions baked into broad queries only (e.g., `"docx parser -online"`), never on exact/websearch entity names.

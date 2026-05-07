@@ -14,6 +14,7 @@ class Config:
     thresholds: dict = field(default_factory=dict)
     paths: dict = field(default_factory=dict)
     scoring: dict = field(default_factory=dict)
+    fetch: dict = field(default_factory=dict)
 
     @classmethod
     def load(cls, path: Optional[str] = None) -> "Config":
@@ -25,6 +26,7 @@ class Config:
             thresholds=raw.get("thresholds", {}),
             paths=raw.get("paths", {}),
             scoring=raw.get("scoring", {}),
+            fetch=raw.get("fetch", {}),
         )
 
     def path(self, name: str) -> Path:

@@ -16,6 +16,10 @@ metadata:
 
 Between `gh-intents` and `gh-fetch`. Only when the intent involves searching for GitHub projects in an active/evolving domain.
 
+> **⚠️ Pitfall: Use the LLM platform's built-in websearch tool, NOT custom HTTP scraping.** DuckDuckGo HTML scraping is a last-resort fallback when no built-in search is available. Always prefer the platform's native search capability.
+>
+> **⚠️ Pitfall: Hermes built-in web_search requires FIRECRAWL_API_KEY.** If the key is commented out in `.env` (default), `web_search_tool()` returns "Web tools are not configured." Set `FIRECRAWL_API_KEY` in `.env` to enable, or use alternative search providers.
+
 ## Workflow
 
 ```
@@ -62,8 +66,8 @@ Copy all queries from `cache/intent.json`, then append discovered project names:
 {
   "intent": { ... },
   "queries": [
-    { "query": "python-docx", "reason": "De facto standard for reading docx", "type": "exact" },
-    { "query": "markitdown", "reason": "Microsoft universal doc converter, discovered via WebSearch", "type": "exact" },
+    { "query": "python-docx", "reason": "De facto standard for reading docx", "type": "websearch" },
+    { "query": "markitdown", "reason": "Microsoft universal doc converter, discovered via WebSearch", "type": "websearch" },
     { "query": "docx to markdown", "reason": "Core intent: format conversion", "type": "semantic" }
   ]
 }

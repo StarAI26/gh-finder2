@@ -33,11 +33,19 @@ config = Config.load()
 QUERY_PATH = config.path("query")
 OUTPUT_PATH = config.path("fetched")
 
-PER_PAGE = 30
-MIN_STARS = 2
-MAX_RETRIES = 3
+PER_PAGE = config.fetch.get("per_page", 30)
+MIN_STARS = config.fetch.get("min_stars", 2)
+MAX_RETRIES = config.fetch.get("max_retries", 3)
 BACKOFF_BASE = 2.0
-REQUEST_GAP = 0.1 if os.environ.get("GITHUB_TOKEN") else 1.0  # seconds between requests
+REQUEST_GAP = config.fetch.get("request_gap_with_token", 0.1) if os.environ.get("GITHUB_TOKEN") else config.fetch.get("request_gap_without_token", 1.0)
+
+# Per-type result limits
+TYPE_LIMITS = {
+    "exact": config.fetch.get("exact_limit", 1),
+    "websearch": config.fetch.get("websearch_limit", 1),
+    "semantic": config.fetch.get("semantic_limit", 5),
+    "complexity": config.fetch.get("complexity_limit", 3),
+}
 
 # ─── Helpers ─────────────────────────────────────────────────────────
 
@@ -267,16 +275,16 @@ def main():
         q_type = q_obj.get("type", "semantic")
         print(f"[fetch] Query {i}/{len(queries)}: {query} ({q_type})", file=sys.stderr)
         items = search_repos(query, headers)
-        # Limit semantic/complexity queries to top 5 by stars
-        if q_type in ("semantic", "complexity"):
-            items = items[:5]
+        # Limit results by query type (configured in config/scoring.json)
+        limit = TYPE_LIMITS.get(q_type, 30)
+        items = items[:limit]
         print(f"[fetch]   → {len(items)} results", file=sys.stderr)
 
-        # Validate websearch queries: first result must contain the query name
-        if q_type == "websearch" and items:
+        # Validate exact/websearch queries: first result must contain the query name
+        if q_type in ("exact", "websearch") and items:
             first_name = items[0].get("full_name", "")
             if query.lower() not in first_name.lower():
-                warn = f"websearch query '{query}' → first result is '{first_name}', doesn't match"
+                warn = f"{q_type} query '{query}' → first result is '{first_name}', doesn't match"
                 print(f"[fetch] WARN: {warn}", file=sys.stderr)
                 warnings.append(warn)
                 # Don't seed — the expected project wasn't found
@@ -287,8 +295,8 @@ def main():
                 continue
             seen[full_name] = item
 
-            # First result of every query → seed (skip if websearch query validation failed)
-            if j == 0 and query.lower() in first_name.lower() if q_type == "websearch" else True:
+            # First result of every query → seed (skip if exact/websearch query validation failed)
+            if j == 0 and query.lower() in first_name.lower() if q_type in ("exact", "websearch") else True:
                 seed_repos.add(full_name)
 
         time.sleep(REQUEST_GAP)
