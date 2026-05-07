@@ -41,20 +41,28 @@ The script reads `cache/query.json`, executes each query against the GitHub Sear
 
 ### Python Script Behavior (src/fetcher.py)
 
+**Two-Stage Fetch** (saves ~50% API calls):
+
+- **Stage 1 (default)**: `python sub-skills/gh-fetch/src/fetcher.py`
+  - Executes all queries against GitHub Search API
+  - Fetches metadata (description, stars, forks, releases) for all unique repos
+  - `readme` field is empty string — NO README downloads yet
+  - Writes `cache/fetched.json` with metadata-only repo objects
+
+- **Stage 2 (README-only)**: `python sub-skills/gh-fetch/src/fetcher.py --readmes-only --kept-list cache/kept.json`
+  - Downloads READMEs ONLY for repos listed in `kept.json`
+  - Updates `cache/fetched.json` in-place, filling `readme` field for kept repos
+  - Skips repos not in kept list (saves API quota and time)
+
+**Common behavior for both stages**:
 - Reads queries from `cache/query.json` (each has `query`, `reason`, `type`: `"exact"`/`"websearch"`/`"semantic"`/`"complexity"`)
 - For each query, calls `GET /search/repositories?q=<query>&sort=stars&order=desc&per_page=30`
-- Requires `GITHUB_TOKEN` env var (fail immediately if missing)
+- `GITHUB_TOKEN` env var is optional — without it, unauthenticated API (60 req/h, auto-adjusted 1.0s gap)
 - Deduplicates repos by `full_name`
-- Per-type result limits: read from `config.fetch` (`exact_limit`, `websearch_limit`, `semantic_limit`, `complexity_limit`). Default: exact=1, websearch=1, semantic=5, complexity=3.
-- **Seed identification**: First result of every query is a seed repo. For `type: "exact"` or `type: "websearch"` queries, the first result's `full_name` must contain the query string — if not, WARN logged and result is NOT marked as seed. `semantic`/`complexity` queries seed directly without validation.
-- For each unique repo, fetches:
-  - `GET /repos/{owner}/{repo}/readme` → README text
-  - `GET /repos/{owner}/{repo}/releases?per_page=1` → latest release info (counts via `total_count` header)
-- Writes structured JSON to `cache/fetched.json`
-- Progress logs to stderr only (e.g., `[fetch] Query 1/3: python-docx → 12 repos`)
-- Uses file-based cache with SHA-256 hashed keys and 1-hour TTL (reuse `src/cache.py`)
-- Retries with exponential backoff on 5xx errors
-- Respects rate limits (0.1s gap between requests with token)
+- Per-type result limits: read from `config.fetch` (`exact_limit`, `websearch_limit`, `semantic_limit`, `complexity_limit`)
+- **Seed identification**: First result of every query is a seed repo. For `type: "exact"` or `type: "websearch"` queries, the first result's `full_name` must contain the query string — if not, WARN logged and result is NOT marked as seed.
+- Progress logs to stderr only
+- Retries with exponential backoff on 5xx/SSL errors
 
 ## Output: cache/fetched.json
 
@@ -206,3 +214,7 @@ See [gh-finder2/references/github-api-query-design.md](../../gh-finder2/referenc
 > **⚠️ SSL `UNEXPECTED_EOF_WHILE_READING` errors on GitHub API**: Container Python 3.13.5 sometimes hits SSL EOF errors on GitHub API calls. These are transient — catch `ssl.SSLError` and retry, don't abort.
 >
 > **⚠️ Fetcher reads `cache/query.json` NOT `cache/intent.json`**: The merged query file is the input. Running fetcher with only `intent.json` will fail because `config.path("query")` resolves to `cache/query.json`.
+>
+> **⚠️ `parse_repo` parameter name `fetch_readme` shadows the `fetch_readme()` function**: When adding a `fetch_readme: bool = True` parameter to `parse_repo()`, Python resolves the name to the parameter inside the function body, making the `fetch_readme()` function inaccessible. Always use a different parameter name like `with_readme: bool = True`.
+>
+> **⚠️ Exact/websearch query first result may not match the query string**: GitHub Search API sorts by stars, not exact match. Query `"playwright"` may return `"browser-use/browser-use"` (92k stars) before `"microsoft/playwright"` (88k stars). This is expected behavior — the seed validation WARN is correct, don't treat it as a fetcher bug.

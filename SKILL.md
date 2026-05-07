@@ -16,12 +16,16 @@ metadata:
 Step 1: 调用 sub-skills/gh-intents → 提取搜索参数，保存至 cache/intent.json
 Step 2: 调用 sub-skills/gh-websearch → WebSearch 补充发现知名项目
 Step 3: 合并 intent.json + websearch 结果 → cache/query.json（单一查询入口）
-Step 4: 校验 query.json → 运行 python src/validate.py query
-Step 5: 调用 sub-skills/gh-fetch → 读 query.json，API 调用 + README
-Step 6: 校验 fetched.json → python src/validate.py fetch
-Step 7: 调用 sub-skills/gh-score → 读 README 判断相关性 + 排名
+Step 4: 校验 query.json → 运行 python3 src/validate.py intents
+Step 5: 调用 sub-skills/gh-fetch → 读 query.json，API 调用（Stage 1: metadata only）
+Step 5b: LLM Pre-screen → 按 description 排序，保留 top 50% + seeds → cache/kept.json
+Step 5c: gh-fetch Stage 2 → python3 fetcher.py --readmes-only --kept-list cache/kept.json
+Step 6: 校验 fetched.json → python3 src/validate.py fetch
+Step 7: 调用 sub-skills/gh-score → LLM 完整打分 + Python 评分
 Step 8: 校验 scored.json → 输出最终结果
 ```
+
+> **⚠️ Pitfall: DO NOT skip steps.** Steps 1→8 must execute in order. Common mistake: jumping straight to Step 5 (fetch) after Step 1, skipping WebSearch discovery (Step 2), merge (Step 3), and validation (Step 4). The workflow is a pipeline — each step produces artifacts the next depends on. If user says "跑", run ALL steps in sequence.
 
 ## Step-by-Step Execution
 
@@ -144,6 +148,8 @@ python src/validate.py fetch
    - **fit ranking**: best fit to worst fit for user's specific scenario
 5. Save to `cache/llm_scores.json`:
 
+> **⚠️ Pitfall: `llm_scores.json` MUST include ALL four keys**: `prescreen_ranking`, `kept_for_scoring`, `purpose_ranking`, `fit_ranking`. If `purpose_ranking` or `fit_ranking` are missing, scorer.py gives them 0 score, making even relevant repos rank poorly. Every kept repo must appear in both purpose and fit rankings.
+
 ```json
 {
   "prescreen_ranking": [
@@ -212,6 +218,10 @@ Top GitHub Projects for: [intent.summary]
 > **⚠️ 所有 fetch 参数必须放在 config/scoring.json**：`PER_PAGE`、`MIN_STARS`、`REQUEST_GAP`、各类查询的 top N 限制等都不能硬编码在 fetcher.py 中。统一通过 `config.fetch` 读取，确保可配置性。
 >
 > **⚠️ Semantic/complexity queries on GitHub API are noisy**: API 做 substring match + stars 排序，不是语义搜索。`"github project recommendation"` 匹配医院推荐系统；`"skill scoring ranking"` 匹配 ML notebook。Semantic 查询引入噪音，拖慢 fetcher。优先使用 `websearch` 类型的精准项目名。详见 [references/github-api-query-design.md](references/github-api-query-design.md)。
+>
+> **⚠️ Exact query first result may not match the query name**: GitHub Search API sorts by stars, not relevance. Query `playwright` → first result was `browser-use/browser-use` (92K⭐), not `microsoft/playwright` (88K⭐). The seed repo detection logic uses `query.lower() in first_name.lower()` validation — if it fails, the expected project won't be seeded. Consider adding the expected repo to seed_repos manually when exact query validation fails.
+>
+> **⚠️ `parse_repo` parameter `fetch_readme` shadows the `fetch_readme()` function**: When adding a `fetch_readme: bool = True` parameter to `parse_repo()`, the parameter name shadows the module-level `fetch_readme()` function, causing `NameError: name 'fetch_readme' is not defined` or calling the bool. Rename parameter to `with_readme` to avoid shadowing.
 
 ## Error Recovery
 

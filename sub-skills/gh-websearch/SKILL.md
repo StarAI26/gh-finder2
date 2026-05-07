@@ -19,6 +19,8 @@ Between `gh-intents` and `gh-fetch`. Only when the intent involves searching for
 > **⚠️ Pitfall: Use the LLM platform's built-in websearch tool, NOT custom HTTP scraping.** DuckDuckGo HTML scraping is a last-resort fallback when no built-in search is available. Always prefer the platform's native search capability.
 >
 > **⚠️ Pitfall: Hermes built-in web_search requires FIRECRAWL_API_KEY.** If the key is commented out in `.env` (default), `web_search_tool()` returns "Web tools are not configured." Set `FIRECRAWL_API_KEY` in `.env` to enable, or use alternative search providers.
+>
+> **⚠️ Pitfall: DuckDuckGo HTML fallback returns very few GitHub URLs**. Single-query DDG HTML scraping often yields only 1-2 GitHub URLs (usually topic pages, not actual projects). Use **multiple search queries** with different phrasings to improve coverage. Expect 5-10 total repos from 3-4 queries, not 20+.
 
 ## Workflow
 
