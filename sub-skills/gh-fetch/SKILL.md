@@ -36,7 +36,7 @@ Read `cache/query.json` (produced by merging gh-intents + gh-websearch):
 
 Run the Python fetcher:
 ```bash
-python sub-skills/gh-fetch/src/fetcher.py
+python3 sub-skills/gh-fetch/src/fetcher.py
 ```
 
 The script reads `cache/query.json`, executes each query against the GitHub Search API, fetches metadata (description, stars, forks, releases), and writes results to `cache/fetched.json`. The `readme` field is set to empty string for all repos — README downloading is handled later by `gh-score/src/fetch_readmes.py` in Step 7a, after the description-based pre-screen eliminates irrelevant repos.
@@ -197,14 +197,10 @@ See [gh-finder2/references/github-api-query-design.md](../../gh-finder2/referenc
 >
 > **⚠️ Semantic/complexity queries on GitHub Search API are noisy**: API does substring match + stars sort, not semantic search. `"github project recommendation tool"` matches hospital/movie recommendation projects. `"skill scoring ranking system"` matches ML feature engineering notebooks. These queries inject noise, slow down fetching (every irrelevant repo needs README fetch), and degrade scoring quality. Prefer exact project names from WebSearch.
 >
-> **⚠️ Fetcher is purely serial with no incremental writes**: Must fetch all READMEs before writing `fetched.json`. Network timeout = total loss. Consider periodic checkpoint writes.
->
-> **⚠️ Large READMEs block execution**: Some repos (e.g. auto-generated skill directories) have READMEs >100KB. Transfer + base64 decode takes disproportionate time. Consider size limits or timeouts per README.
+> **⚠️ Fetcher is metadata-only, no READMEs**: `fetcher.py` sets `readme` to empty string for all repos. READMEs are fetched later by `gh-score/src/fetch_readmes.py` in Step 7a, only for repos that pass the description pre-screen. This saves ~50% of API calls.
 >
 > **⚠️ SSL `UNEXPECTED_EOF_WHILE_READING` errors on GitHub API**: Container Python 3.13.5 sometimes hits SSL EOF errors on GitHub API calls. These are transient — catch `ssl.SSLError` and retry, don't abort.
 >
 > **⚠️ Fetcher reads `cache/query.json` NOT `cache/intent.json`**: The merged query file is the input. Running fetcher with only `intent.json` will fail because `config.path("query")` resolves to `cache/query.json`.
->
-> **⚠️ `parse_repo` parameter name `fetch_readme` shadows the `fetch_readme()` function**: When adding a `fetch_readme: bool = True` parameter to `parse_repo()`, Python resolves the name to the parameter inside the function body, making the `fetch_readme()` function inaccessible. Always use a different parameter name like `with_readme: bool = True`.
 >
 > **⚠️ Exact/websearch query first result may not match the query string**: GitHub Search API sorts by stars, not exact match. Query `"playwright"` may return `"browser-use/browser-use"` (92k stars) before `"microsoft/playwright"` (88k stars). This is expected behavior — the seed validation WARN is correct, don't treat it as a fetcher bug.

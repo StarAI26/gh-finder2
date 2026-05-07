@@ -16,7 +16,7 @@ metadata:
 Step 1: 调用 sub-skills/gh-intents → 提取搜索参数，保存至 cache/intent.json
 Step 2: 调用 sub-skills/gh-websearch → WebSearch 补充发现知名项目
 Step 3: 合并 intent.json + websearch 结果 → cache/query.json（单一查询入口）
-Step 4: 校验 query.json → python3 src/validate.py intents
+Step 4: 校验 query.json → python3 src/validate.py intents + 检查 GITHUB_TOKEN
 Step 5: 调用 sub-skills/gh-fetch → metadata only (no READMEs)
 Step 5b: python3 sub-skills/gh-score/src/rank_description.py prepare → LLM ranks → rank → kept.json + llm_scores.json
 Step 6: 校验 fetched.json → python3 src/validate.py fetch
@@ -81,7 +81,7 @@ Merge gh-intents queries with gh-websearch discoveries into a single file:
 }
 ```
 
-### Step 4: Validate intent.json
+### Step 4: Validate + Token Check
 
 ```bash
 python3 src/validate.py intents
@@ -96,7 +96,19 @@ python3 src/validate.py intents
 - 每个 query ≤3 个词
 - `reason` 必须具体，不能是通用描述
 
-**不合格处理**：指出具体失败原因，要求重做。
+**检查 GitHub API Token**：
+Step 5 即将开始 API 抓取，必须确认用户是否有 `GITHUB_TOKEN`：
+
+```python
+import os
+has_token = bool(os.environ.get("GITHUB_TOKEN"))
+```
+
+- ✅ 有 token → 5000 req/h，直接继续 Step 5
+- ⚠️ 无 token → 60 req/h（极易触发 403），**必须警告用户**：
+  > `⚠️ GITHUB_TOKEN 未设置。GitHub API 限制为 60 请求/小时，抓取 20+ 个仓库可能触发限速。建议设置 token 后重试，或确认继续（可能不完整）。`
+
+**不合格处理**：指出具体失败原因，要求重做。Token 警告由用户决定是否继续。
 
 ### Step 5: gh-fetch (Stage 1 - Search)
 
