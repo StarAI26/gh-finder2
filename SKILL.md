@@ -17,11 +17,11 @@ Step 1: 调用 sub-skills/gh-intents → 提取搜索参数，保存至 cache/in
 Step 2: 调用 sub-skills/gh-websearch → WebSearch 补充发现知名项目
 Step 3: 合并 intent.json + websearch 结果 → cache/query.json（单一查询入口）
 Step 4: 校验 query.json → python3 src/validate.py intents
-Step 5: 调用 sub-skills/gh-fetch → Stage 1: metadata only (no READMEs)
+Step 5: 调用 sub-skills/gh-fetch → metadata only (no READMEs)
 Step 5b: python3 sub-skills/gh-score/src/rank_description.py prepare → LLM ranks → rank → kept.json + llm_scores.json
-Step 5c: python3 sub-skills/gh-fetch/src/fetcher.py --readmes-only --kept-list cache/kept.json
 Step 6: 校验 fetched.json → python3 src/validate.py fetch
-Step 7a: python3 sub-skills/gh-score/src/rank_readme.py prepare → LLM orders → merge → llm_scores.json
+Step 7a: python3 sub-skills/gh-score/src/fetch_readmes.py → download READMEs for kept repos only
+         python3 sub-skills/gh-score/src/rank_readme.py prepare → LLM orders → merge → llm_scores.json
 Step 7a-v: python3 sub-skills/gh-score/src/validate_scores.py → verify 4 keys complete
 Step 7b: python3 sub-skills/gh-score/src/scorer.py → cache/scored.json
 Step 8: 校验 scored.json → python3 src/validate.py score → 输出最终结果
@@ -121,14 +121,7 @@ python3 sub-skills/gh-score/src/rank_description.py prepare
 python3 sub-skills/gh-score/src/rank_description.py rank
 ```
 
-### Step 5c: gh-fetch (Stage 2 - READMEs)
-
-Run fetcher again to download only kept READMEs:
-```bash
-python3 sub-skills/gh-fetch/src/fetcher.py --readmes-only --kept-list cache/kept.json
-```
-
-- Updates `cache/fetched.json` in-place with READMEs for kept repos only.
+### Step 5c: (Removed — README fetch moved to Step 7a)
 
 ### Step 6: Validate fetched.json
 
@@ -153,21 +146,22 @@ python src/validate.py fetch
 
 #### Step 7a: LLM ranking (standardized)
 
-#### Step 7a: LLM ranking (standardized)
+First, download READMEs only for kept repos. Then LLM ranks based on README content.
 
 ```bash
-# 1. Prepare kept repos + READMEs for LLM ranking
+# 1. Download READMEs for kept repos only
+python3 sub-skills/gh-score/src/fetch_readmes.py
+
+# 2. Prepare kept repos + READMEs for LLM ranking
 python3 sub-skills/gh-score/src/rank_readme.py prepare
 
-# 2. LLM provides TWO ORDERED LISTS (no scores):
+# 3. LLM provides TWO ORDERED LISTS (no scores):
 #    Format: {"purpose_order": [...], "fit_order": [...], "reasons": {...}}
-#    - purpose_order: most→least relevant to user's intent
-#    - fit_order: best→worst fit for user's specific scenario
 
-# 3. Feed orderings back to script → appends to llm_scores.json
+# 4. Feed orderings back to script → appends to llm_scores.json
 python3 sub-skills/gh-score/src/rank_readme.py merge
 
-# 4. Validate completeness
+# 5. Validate completeness
 python3 sub-skills/gh-score/src/validate_scores.py
 ```
 

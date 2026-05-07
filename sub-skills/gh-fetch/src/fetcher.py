@@ -250,54 +250,17 @@ def _get_token() -> Optional[str]:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Fetch GitHub repos and READMEs.")
-    parser.add_argument("--readmes-only", action="store_true", help="Skip search; only download READMEs for kept repos.")
-    parser.add_argument("--kept-list", type=str, help="Path to JSON file with list of repo full_names to fetch READMEs for.")
-    args = parser.parse_args()
+    """Run GitHub Search API queries and fetch metadata (no READMEs).
 
+    README downloading is handled by gh-score's fetch_readmes.py in Step 7a.
+    """
     token = _get_token()
     if not token:
         print("[fetch] WARNING: GITHUB_TOKEN not set, using unauthenticated API (60 req/h limit)", file=sys.stderr)
 
-    if not QUERY_PATH.exists() and not args.readmes_only:
+    if not QUERY_PATH.exists():
         print(f"[fetch] ERROR: {QUERY_PATH} not found", file=sys.stderr)
         sys.exit(1)
-
-    headers = {
-        "Accept": "application/vnd.github.v3+json",
-        "User-Agent": "gh-finder2/1.0",
-    }
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-
-    if args.readmes_only:
-        if not args.kept_list or not os.path.exists(args.kept_list):
-            print("[fetch] ERROR: --kept-list required with --readmes-only", file=sys.stderr)
-            sys.exit(1)
-        with open(args.kept_list, "r", encoding="utf-8") as f:
-            kept_repos = json.load(f)
-        
-        if not OUTPUT_PATH.exists():
-            print("[fetch] ERROR: fetched.json not found", file=sys.stderr)
-            sys.exit(1)
-        with open(OUTPUT_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        
-        repos = data.get("repos", [])
-        kept_set = set(kept_repos)
-        
-        for i, repo in enumerate(repos):
-            if repo["full_name"] in kept_set:
-                print(f"[fetch] Downloading README for {repo['full_name']} ({i+1}/{len(repos)})", file=sys.stderr)
-                repo["readme"] = fetch_readme(repo["full_name"], headers)
-                time.sleep(REQUEST_GAP)
-            else:
-                print(f"[fetch] Skipping {repo['full_name']} (not in kept list)", file=sys.stderr)
-        
-        with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-        print(f"[fetch] Done → {OUTPUT_PATH} (READMEs downloaded for kept repos)", file=sys.stderr)
-        return
 
     with open(QUERY_PATH, "r", encoding="utf-8") as f:
         intent = json.load(f)
