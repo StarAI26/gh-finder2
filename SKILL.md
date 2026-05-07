@@ -137,30 +137,22 @@ python src/validate.py fetch
 
 #### Step 7a: LLM ranking (standardized)
 
-After Step 5b already wrote `prescreen_ranking` and `kept_for_scoring`, LLM must now add `purpose_ranking` and `fit_ranking` to `llm_scores.json`:
+Same pipeline pattern as Step 5b: `prepare` → LLM scores → `merge`.
 
 ```bash
-# 1. Read READMEs of kept repos from fetched.json
-# 2. LLM produces two rankings:
-#    - purpose_ranking: relevance to user's intent
-#    - fit_ranking: fit for user's specific scenario
-# 3. Update llm_scores.json, then validate:
-python3 src/validate_llm_scores.py
-```
+# 1. Prepare kept repos + READMEs for LLM scoring
+python3 src/score_llm.py prepare
 
-```json
-{
-  "prescreen_ranking": [
-    { "full_name": "mwilliamson/python-mammoth", "rank": 1, "reason": "..." }
-  ],
-  "kept_for_scoring": ["mwilliamson/python-mammoth", "pandoc/pandoc", "..."],
-  "purpose_ranking": [
-    { "full_name": "mwilliamson/python-mammoth", "rank": 1, "reason": "..." }
-  ],
-  "fit_ranking": [
-    { "full_name": "mwilliamson/python-mammoth", "rank": 1, "reason": "..." }
-  ]
-}
+# 2. LLM scores each kept repo:
+#    - purpose_score(1-100): relevance to user's intent
+#    - fit_score(1-100): fit for user's specific scenario
+#    Format: JSON array of {"full_name": "...", "purpose_score": N, "fit_score": N, "reason": "..."}
+
+# 3. Feed scores back to script → merges into llm_scores.json
+python3 src/score_llm.py merge
+
+# 4. Validate completeness
+python3 src/validate_llm_scores.py
 ```
 
 - See [sub-skills/gh-score/SKILL.md](sub-skills/gh-score/SKILL.md) for the full specification
@@ -205,7 +197,7 @@ Top GitHub Projects for: [intent.summary]
 
 ## Pitfalls
 
-> **⚠️ `llm_scores.json` MUST include ALL four keys**: `prescreen_ranking`, `kept_for_scoring`, `purpose_ranking`, `fit_ranking`. If `purpose_ranking` or `fit_ranking` are missing, scorer.py gives them 0 score, making even relevant repos rank poorly. Use `validate_llm_scores.py` before scorer.
+> **⚠️ Step 5b and 7a must use standardized scripts**: `prescreen.py rank` writes `prescreen_ranking` + `kept_for_scoring`; `score_llm.py merge` appends `purpose_ranking` + `fit_ranking`. Both preserve existing keys — never hand-edit `llm_scores.json`. Missing any field → scorer gives 0. Use `validate_llm_scores.py` before `scorer.py`.
 >
 > **⚠️ GITHUB_TOKEN not set** → 60 req/h limit. For >20 repos, expect 403 during README fetch.
 >
