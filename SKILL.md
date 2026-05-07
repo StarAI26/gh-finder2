@@ -69,14 +69,6 @@ Merge gh-intents queries with gh-websearch discoveries into a single file:
 python3 src/validate.py intents
 ```
 
-> **⚠️ Pitfall**: SKILL.md 原文档写的是 `validate.py query`，但实际脚本只接受 `intents | fetch | score`。用 `python3` 而非 `python`。
->
-> **⚠️ Pitfall: query.json 中 semantic/complexity 查询在 GitHub Search API 上极度不精准**。API 做 substring match + stars 排序，不是语义搜索。`"github project recommendation tool"` 会匹配医院推荐系统、电影推荐项目等无关结果；`"skill scoring ranking system"` 匹配 ML feature engineering 的 "skill score" notebook。Semantic 查询引入大量噪音，拖慢 fetcher（每个无关项目都要抓 README），且降低评分质量。
->
-> **⚠️ Pitfall: fetcher 串行抓取 README，大 README 拖垮整体**。`dmgrok/agent_skills_directory` 的 README 有 158KB（自动生成 skill 目录索引），传输 + base64 解码耗时远超正常 README。99 个项目串行抓 = 必然超时。应限制无关项目数量，或并发抓取。
->
-> **⚠️ Pitfall: fetcher 无增量写入，中途超时 = 全部丢失**。必须全部抓完才写 `fetched.json`，网络超时导致工作白费。
-
 **校验规则**：
 - `intent.summary` 不能为空
 - `queries` 数组 3-8 个元素
@@ -99,8 +91,6 @@ python3 sub-skills/gh-fetch/src/fetcher.py
 - Input: `cache/query.json` (NOT `intent.json` — the fetcher reads the merged queries)
 - Output: `cache/fetched.json` (contains description/metrics, `readme` is empty)
 
-> **⚠️ Pitfall: GITHUB_TOKEN not set**. Without token, GitHub API limits to 60 req/h. The fetcher was patched to work without token (graceful degradation). For >20 repos, set `GITHUB_TOKEN` or expect 403 rate limits during README fetch.
-
 ### Step 5b: LLM Pre-screen (standardized)
 
 ```bash
@@ -114,8 +104,6 @@ python3 src/prescreen.py prepare
 # 3. Feed ranking back to script → writes kept.json + llm_scores.json
 python3 src/prescreen.py rank
 ```
-
-> **⚠️ Pitfall: Do NOT hand-write kept.json or llm_scores.json.** Always use `prescreen.py prepare` + `prescreen.py rank` pipeline. The script validates format, applies `prescreen_keep_ratio` from config, merges seeds, and writes both `kept.json` and `llm_scores.json` atomically.
 
 ### Step 5c: gh-fetch (Stage 2 - READMEs)
 
@@ -156,11 +144,9 @@ After Step 5b already wrote `prescreen_ranking` and `kept_for_scoring`, LLM must
 # 2. LLM produces two rankings:
 #    - purpose_ranking: relevance to user's intent
 #    - fit_ranking: fit for user's specific scenario
-# 3. Update llm_scores.json manually, then validate:
+# 3. Update llm_scores.json, then validate:
 python3 src/validate_llm_scores.py
 ```
-
-> **⚠️ Pitfall: `llm_scores.json` MUST include ALL four keys**: `prescreen_ranking`, `kept_for_scoring`, `purpose_ranking`, `fit_ranking`. If `purpose_ranking` or `fit_ranking` are missing, scorer.py gives them 0 score, making even relevant repos rank poorly. Every kept repo must appear in both purpose and fit rankings. Use `validate_llm_scores.py` before running scorer.py — it will catch missing fields automatically.
 
 ```json
 {
@@ -219,31 +205,17 @@ Top GitHub Projects for: [intent.summary]
 
 ## Pitfalls
 
-> **⚠️ 修改代码后必须先展示 diff/关键改动，确认逻辑正确再执行**。不要改完直接跑，用户需要看到改了什么、为什么这样改。
+> **⚠️ `llm_scores.json` MUST include ALL four keys**: `prescreen_ranking`, `kept_for_scoring`, `purpose_ranking`, `fit_ranking`. If `purpose_ranking` or `fit_ranking` are missing, scorer.py gives them 0 score, making even relevant repos rank poorly. Use `validate_llm_scores.py` before scorer.
 >
-> **⚠️ DO NOT hand-write cache files.** Steps 5b (prescreen) and 7a (llm_scores) must use standardized scripts: `python3 src/prescreen.py prepare` + `python3 src/prescreen.py rank` for pre-screening, and `python3 src/validate_llm_scores.py` for LLM scoring validation. Manual JSON editing leads to missing fields (purpose/fit rankings → scorer gives 0) and format errors.
+> **⚠️ GITHUB_TOKEN not set** → 60 req/h limit. For >20 repos, expect 403 during README fetch.
 >
-> **⚠️ SKILL.md vs script mismatch**: `validate.py query` → `validate.py intents`。用 `python3` 而非 `python`。
+> **⚠️ Semantic/complexity queries on GitHub API are noisy**: API does substring match + stars sort, NOT semantic search. `"github project recommendation"` matches hospital recommendation systems. Prefer `websearch` type with exact project names.
 >
-> **⚠️ Fetcher 串行抓取 README，大 README 拖垮整体**：`dmgrok/agent_skills_directory` 的 README 有 158KB（自动生成 skill 目录索引），传输 + base64 解码耗时远超正常 README。应限制无关项目数量，或并发抓取。
+> **⚠️ Exact query first result may not match**: API sorts by stars, not relevance. Query `playwright` → first result was `browser-use` (92K⭐), not `microsoft/playwright` (88K⭐). Seed detection may fail — add expected repos manually if needed.
 >
-> **⚠️ Fetcher 无增量写入，中途超时 = 全部丢失**：必须全部抓完才写 `fetched.json`，网络超时导致工作白费。
->
-> **⚠️ SSL `UNEXPECTED_EOF_WHILE_READING` errors on GitHub API**：Container Python 3.13.5 有时在 GitHub API 调用时遇到 SSL EOF 错误。这些是瞬态的 — catch `ssl.SSLError` 并重试，不要 abort。
->
-> **⚠️ 所有 fetch 参数必须放在 config/scoring.json**：`PER_PAGE`、`MIN_STARS`、`REQUEST_GAP`、各类查询的 top N 限制等都不能硬编码在 fetcher.py 中。统一通过 `config.fetch` 读取，确保可配置性。
->
-> **⚠️ Semantic/complexity queries on GitHub API are noisy**: API 做 substring match + stars 排序，不是语义搜索。`"github project recommendation"` 匹配医院推荐系统；`"skill scoring ranking"` 匹配 ML notebook。Semantic 查询引入噪音，拖慢 fetcher。优先使用 `websearch` 类型的精准项目名。详见 [references/github-api-query-design.md](references/github-api-query-design.md)。
->
-> **⚠️ Exact query first result may not match the query name**: GitHub Search API sorts by stars, not relevance. Query `playwright` → first result was `browser-use/browser-use` (92K⭐), not `microsoft/playwright` (88K⭐). The seed repo detection logic uses `query.lower() in first_name.lower()` validation — if it fails, the expected project won't be seeded. Consider adding the expected repo to seed_repos manually when exact query validation fails.
->
-> **⚠️ `parse_repo` parameter `fetch_readme` shadows the `fetch_readme()` function**: When adding a `fetch_readme: bool = True` parameter to `parse_repo()`, the parameter name shadows the module-level `fetch_readme()` function, causing `NameError: name 'fetch_readme' is not defined` or calling the bool. Rename parameter to `with_readme` to avoid shadowing.
+> **⚠️ SSL `UNEXPECTED_EOF_WHILE_READING` errors**: Transient — catch `ssl.SSLError` and retry, don't abort.
 
 ## Error Recovery
-
-> **⚠️ 先分析再执行**: 遇到问题卡住时，先搞明白根本原因，不要盲目重试。用户明确要求"先搞明白问题"再动手。
->
-> **⚠️ 所有参数必须在 config 中**: fetch 相关参数（per_page、类型限制、重试次数等）必须在 `config/scoring.json` 中配置，禁止硬编码。
 
 | Step | Failure | Recovery |
 |------|---------|----------|
