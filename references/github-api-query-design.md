@@ -44,7 +44,7 @@ Both types have the same validation rule: first result's `full_name` must contai
 
 ### Config-Driven Limits
 
-All fetch parameters are in `config/scoring.json` under the `fetch` key:
+All fetch parameters are in `config.toml` under the `[fetch]` section:
 
 ```json
 {

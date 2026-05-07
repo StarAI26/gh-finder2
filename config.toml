@@ -1,0 +1,57 @@
+# gh-finder2 配置
+
+[fetch]
+# GitHub Search API: 每次查询返回条数
+per_page = 30
+# 每种查询类型最多保留的结果数
+exact_limit = 5
+websearch_limit = 5
+semantic_limit = 5
+complexity_limit = 3
+# 请求间隔（秒），有无 Token 区别很大
+request_gap_with_token = 0.1
+request_gap_without_token = 1.0
+# 最低 Stars 数，过滤垃圾项目
+min_stars = 2
+# 瞬态错误（SSL/网络）最大重试次数
+max_retries = 3
+
+[scoring]
+# 预筛：按 description 保留前 N% 进入 README 下载阶段
+prescreen_keep_ratio = 0.5
+# Trust 检查的 API 超时（秒）
+trust_timeout_sec = 10
+
+[weights]
+# 综合评分权重，总和 = 100
+# purpose: LLM 排序 — 与用户意图的相关性（最高权重）
+purpose = 30
+# fit: LLM 排序 — 与具体场景的匹配度
+fit = 20
+# trust: 许可证、owner 类型（org vs user）
+trust = 15
+# community: GitHub 互动信号（stars/forks/watchers）
+community = 10
+# quality: 代码质量指标
+quality = 10
+# infrastructure: CI/CD、测试、文档
+infrastructure = 10
+# momentum: 近期活跃度（pushes/releases）
+momentum = 5
+
+[thresholds]
+# 归一化上限：stars >= 此值记为 100 分
+min_stars_for_scale = 500000
+# forks >= 此值记为 100 分
+max_forks_for_scale = 100000
+# watchers >= 此值记为 100 分
+max_watchers_for_scale = 50000
+# 单个 repo 最多做多少次 trust 检查（避免 API 限流）
+trust_check_limit = 20
+
+[paths]
+cache = "cache"
+intent = "cache/intent.json"
+query = "cache/query.json"
+fetched = "cache/fetched.json"
+scored = "cache/scored.json"

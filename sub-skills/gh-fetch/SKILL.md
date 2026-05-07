@@ -203,7 +203,7 @@ See [gh-finder2/references/github-api-query-design.md](../../gh-finder2/referenc
 
 ## Pitfalls
 
-> **⚠️ ALL fetch parameters must be in config, not hardcoded.** `per_page`, type limits (`websearch_limit`, `semantic_limit`, `complexity_limit`), `min_stars`, `request_gap`, `max_retries` — all live in `config/scoring.json` under `fetch` section. The fetcher reads via `config.fetch.get(key, default)`. Hardcoding parameters prevents users from tuning behavior.
+> **⚠️ ALL fetch parameters must be in config, not hardcoded.** `per_page`, type limits (`websearch_limit`, `semantic_limit`, `complexity_limit`), `min_stars`, `request_gap`, `max_retries` — all live in `config.toml` under `[fetch]` section. The fetcher reads via `config.fetch.get(key, default)`. Hardcoding parameters prevents users from tuning behavior.
 >
 > **⚠️ Semantic/complexity queries on GitHub Search API are noisy**: API does substring match + stars sort, not semantic search. `"github project recommendation tool"` matches hospital/movie recommendation projects. `"skill scoring ranking system"` matches ML feature engineering notebooks. These queries inject noise, slow down fetching (every irrelevant repo needs README fetch), and degrade scoring quality. Prefer exact project names from WebSearch.
 >

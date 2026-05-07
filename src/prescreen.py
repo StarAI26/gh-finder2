@@ -22,9 +22,10 @@ ROOT = Path(__file__).resolve().parent.parent
 
 def load_config():
     """Load scoring config for prescreen_keep_ratio."""
-    cfg_path = ROOT / "config" / "scoring.json"
-    with open(cfg_path, encoding="utf-8") as f:
-        raw = json.load(f)
+    import tomllib
+    cfg_path = ROOT / "config.toml"
+    with open(cfg_path, "rb") as f:
+        raw = tomllib.load(f)
     return raw.get("scoring", {}).get("prescreen_keep_ratio", 0.5)
 
 

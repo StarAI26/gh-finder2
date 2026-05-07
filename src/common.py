@@ -1,6 +1,8 @@
 """Global config + paths. One source of truth."""
 
 import json
+import sys
+import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -18,9 +20,9 @@ class Config:
 
     @classmethod
     def load(cls, path: Optional[str] = None) -> "Config":
-        cfg_path = Path(path) if path else ROOT / "config" / "scoring.json"
-        with open(cfg_path, encoding="utf-8") as f:
-            raw = json.load(f)
+        cfg_path = Path(path) if path else ROOT / "config.toml"
+        with open(cfg_path, "rb") as f:
+            raw = tomllib.load(f)
         return cls(
             weights=raw.get("weights", {}),
             thresholds=raw.get("thresholds", {}),

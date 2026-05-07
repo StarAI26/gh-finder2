@@ -323,7 +323,7 @@ def main():
         q_type = q_obj.get("type", "semantic")
         print(f"[fetch] Query {i}/{len(queries)}: {query} ({q_type})", file=sys.stderr)
         items = search_repos(query, headers)
-        # Limit results by query type (configured in config/scoring.json)
+        # Limit results by query type (configured in config.toml)
         limit = TYPE_LIMITS.get(q_type, 30)
         items = items[:limit]
         print(f"[fetch]   → {len(items)} results", file=sys.stderr)
