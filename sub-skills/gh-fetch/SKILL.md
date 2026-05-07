@@ -41,10 +41,11 @@ The script reads `cache/query.json`, executes each query against the GitHub Sear
 
 ### Python Script Behavior (src/fetcher.py)
 
-- Reads queries from `cache/query.json` (each has `query`, `reason`, `type`: `"websearch"`/`"semantic"`/`"complexity"`)
+- Reads queries from `cache/query.json` (each has `query`, `reason`, `type`: `"exact"`/`"websearch"`/`"semantic"`/`"complexity"`)
 - For each query, calls `GET /search/repositories?q=<query>&sort=stars&order=desc&per_page=30`
 - Requires `GITHUB_TOKEN` env var (fail immediately if missing)
 - Deduplicates repos by `full_name`
+- Per-type result limits: read from `config.fetch` (`exact_limit`, `websearch_limit`, `semantic_limit`, `complexity_limit`). Default: exact=1, websearch=1, semantic=5, complexity=3.
 - **Seed identification**: First result of every query is a seed repo. For `type: "exact"` or `type: "websearch"` queries, the first result's `full_name` must contain the query string — if not, WARN logged and result is NOT marked as seed. `semantic`/`complexity` queries seed directly without validation.
 - For each unique repo, fetches:
   - `GET /repos/{owner}/{repo}/readme` → README text

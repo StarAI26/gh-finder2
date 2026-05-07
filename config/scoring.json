@@ -25,12 +25,13 @@
     "scored": "cache/scored.json"
   },
   "scoring": {
-    "trust_timeout_sec": 10
+    "trust_timeout_sec": 10,
+    "prescreen_keep_ratio": 0.5
   },
   "fetch": {
     "per_page": 30,
-    "exact_limit": 1,
-    "websearch_limit": 1,
+    "exact_limit": 5,
+    "websearch_limit": 5,
     "semantic_limit": 5,
     "complexity_limit": 3,
     "request_gap_with_token": 0.1,

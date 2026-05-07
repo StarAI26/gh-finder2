@@ -85,16 +85,33 @@ python3 src/validate.py intents
 **不合格处理**：指出具体失败原因，要求重做。
 
 ### Step 5: gh-fetch
+### Step 5: gh-fetch (Stage 1 - Search)
 
-Run the Python fetcher:
-
+Run the Python fetcher to get repo info (no READMEs yet):
 ```bash
 python3 sub-skills/gh-fetch/src/fetcher.py
 ```
 
 - Input: `cache/query.json` (NOT `intent.json` — the fetcher reads the merged queries)
+- Output: `cache/fetched.json` (contains description/metrics, `readme` is empty)
 
 > **⚠️ Pitfall: GITHUB_TOKEN not set**. Without token, GitHub API limits to 60 req/h. The fetcher was patched to work without token (graceful degradation). For >20 repos, set `GITHUB_TOKEN` or expect 403 rate limits during README fetch.
+
+### Step 5b: LLM Pre-screen
+
+1. LLM reads descriptions from `cache/fetched.json`
+2. Ranks by relevance to intent
+3. Keeps top 50% + seeds
+4. Writes `cache/kept.json` (list of `full_name` strings)
+
+### Step 5c: gh-fetch (Stage 2 - READMEs)
+
+Run fetcher again to download only kept READMEs:
+```bash
+python3 sub-skills/gh-fetch/src/fetcher.py --readmes-only --kept-list cache/kept.json
+```
+
+- Updates `cache/fetched.json` in-place with READMEs for kept repos only.
 
 ### Step 6: Validate fetched.json
 
