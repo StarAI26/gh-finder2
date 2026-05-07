@@ -209,25 +209,28 @@ python3 src/validate.py score
 ## 🥇 #1 owner/repo (score: 85.2)
 
 **URL**: https://github.com/owner/repo
-**Description**: [项目的一句话描述]
+**Description**: [原 description]
+**关键指标**：⭐ 88K | TypeScript | 2025 年 3 月
+
+**项目介绍**：
+[用你自己的话总结：这个项目是什么、解决了什么问题、技术亮点、适用场景。不要照搬 description，要基于你对 README 和代码的理解给出独立判断。]
 
 **为什么匹配你的意图**：
-[用 1-2 句话解释该项目如何解决用户的具体问题，结合 README 中的关键信息]
-
-**关键指标**：⭐ 88K | TypeScript | 2025 年 3 月最后更新
-**评分**：purpose=100, fit=90, community=75, trust=80, quality=70, momentum=60, infrastructure=50
+[结合用户原始需求，解释这个项目为什么适合他们的具体场景。如果项目有缺陷（如文档差、停止维护），在这里说明。]
 
 ---
 
 ## 🥈 #2 owner/repo (score: 78.1)
 
 **URL**: https://github.com/owner/repo
-**Description**: [项目描述]
+**Description**: [原 description]
+**关键指标**：⭐ 50K | Python | ...
+
+**项目介绍**：
+[你自己的总结]
 
 **为什么匹配你的意图**：
-[解释匹配关系]
-
-**关键指标**：⭐ 50K | Python | ...
+[匹配关系 + 缺陷说明（如有）]
 
 ---
 
@@ -236,9 +239,10 @@ python3 src/validate.py score
 
 **输出规则**：
 - 只输出 **Top 5-10** 项目，不要输出全部
-- 每个项目必须包含 **"为什么匹配你的意图"** 段落 — 这是核心
-- 意图关联解释要具体，结合用户原始需求和项目 README 内容
-- 不要只复述 README 或 description — 要说明 **"这个项目为什么适合你"**
+- 每个项目必须包含 **"项目介绍"** 和 **"为什么匹配你的意图"** 两段 — 这是核心
+- **项目介绍**：不要直接搬运 description 或 README，要用你自己的话总结这个项目的核心价值、技术特点、适用场景
+- **为什么匹配你的意图**：结合用户原始需求，说明这个项目为什么适合他们的具体场景
+- 意图关联解释要具体，结合项目 README 中的关键信息（如架构图、核心 API、部署方式等）
 - 如果某个项目虽然分数高但有关键缺陷（如文档差、停止维护），在解释中说明
 
 ## Pitfalls
