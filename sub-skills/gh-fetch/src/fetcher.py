@@ -9,8 +9,6 @@ Writes: cache/fetched.json
 Requires: GITHUB_TOKEN environment variable
 """
 
-import argparse
-import base64
 import json
 import os
 import subprocess
@@ -107,22 +105,6 @@ def search_repos(query: str, headers: dict) -> list[dict]:
     return data.get("items", [])
 
 
-def fetch_readme(full_name: str, headers: dict) -> str:
-    """Fetch and decode README, return plain text or empty string."""
-    url = f"https://api.github.com/repos/{full_name}/readme"
-    data = _github_request(url, headers)
-    if not data:
-        return ""
-    content = data.get("content", "")
-    encoding = data.get("encoding", "base64")
-    if encoding == "base64":
-        try:
-            return base64.b64decode(content).decode("utf-8", errors="replace")
-        except Exception:
-            return ""
-    return content
-
-
 def fetch_releases(full_name: str, headers: dict) -> dict:
     """Fetch latest release info and total count."""
     # Get total count from header
@@ -172,24 +154,13 @@ def fetch_releases(full_name: str, headers: dict) -> dict:
 # ─── Repo parsing ────────────────────────────────────────────────────
 
 
-def parse_repo(full_name: str, raw: dict, headers: dict, idx: int, total: int,
-               with_readme: bool = False) -> dict:
+def parse_repo(full_name: str, raw: dict, headers: dict, idx: int, total: int) -> dict:
     """Convert raw Search API item into structured dict per SKILL.md spec."""
     pushed_at = raw.get("pushed_at")
     updated_at = raw.get("updated_at")
 
-    sys.stderr.write(f"  [{idx}/{total}] {full_name} ... ")
+    sys.stderr.write(f"  [{idx}/{total}] {full_name} ... metadata only, ")
     sys.stderr.flush()
-
-    readme_text = ""
-    if with_readme:
-        readme_text = fetch_readme(full_name, headers)
-        sys.stderr.write(f"README {len(readme_text)} chars, ")
-        sys.stderr.flush()
-        time.sleep(REQUEST_GAP)
-    else:
-        sys.stderr.write("metadata only, ")
-        sys.stderr.flush()
 
     releases = fetch_releases(full_name, headers)
     has_rel = releases["has_releases"]
@@ -225,7 +196,7 @@ def parse_repo(full_name: str, raw: dict, headers: dict, idx: int, total: int,
             "default_branch": raw.get("default_branch") or "main",
         },
         "releases": releases,
-        "readme": readme_text,
+        "readme": "",
     }
 
 
@@ -316,7 +287,7 @@ def main():
 
     repos = []
     for i, (name, raw) in enumerate(seen.items(), 1):
-        repo = parse_repo(name, raw, headers, i, len(seen), with_readme=False)
+        repo = parse_repo(name, raw, headers, i, len(seen))
         repos.append(repo)
 
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
