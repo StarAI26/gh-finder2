@@ -32,11 +32,11 @@ The script handles everything. You (the LLM) only provide an ordered list.
 
 ```bash
 # Script outputs formatted repo descriptions for you to rank:
-python sub-skills/gh-score/src/rank_description.py prepare
+python3 sub-skills/gh-score/src/rank_description.py prepare
 
 # You respond with a JSON array: [{"full_name": "...", "rank": 1, "reason": "..."}]
 # Then feed it back to:
-python sub-skills/gh-score/src/rank_description.py rank
+python3 sub-skills/gh-score/src/rank_description.py rank
 ```
 
 **What the script does**:
@@ -53,16 +53,16 @@ python sub-skills/gh-score/src/rank_description.py rank
 
 First, download READMEs only for kept repos:
 ```bash
-python sub-skills/gh-score/src/fetch_readmes.py
+python3 sub-skills/gh-score/src/fetch_readmes.py
 ```
 
 Then rank based on README content:
 ```bash
 # Script outputs kept repos with README previews:
-python sub-skills/gh-score/src/rank_readme.py prepare
+python3 sub-skills/gh-score/src/rank_readme.py prepare
 
 # You respond with TWO ordered lists:
-python sub-skills/gh-score/src/rank_readme.py merge
+python3 sub-skills/gh-score/src/rank_readme.py merge
 ```
 
 **Your response format**:
@@ -80,7 +80,7 @@ python sub-skills/gh-score/src/rank_readme.py merge
 
 **Validate before scoring**:
 ```bash
-python sub-skills/gh-score/src/validate_scores.py
+python3 sub-skills/gh-score/src/validate_scores.py
 ```
 
 ---
@@ -88,7 +88,7 @@ python sub-skills/gh-score/src/validate_scores.py
 ## Step 7b: Python Scoring (automatic)
 
 ```bash
-python sub-skills/gh-score/src/scorer.py
+python3 sub-skills/gh-score/src/scorer.py
 ```
 
 Python converts your rankings to percentile scores:

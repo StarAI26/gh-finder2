@@ -39,7 +39,9 @@ Run the Python fetcher:
 python3 sub-skills/gh-fetch/src/fetcher.py
 ```
 
-The script reads `cache/query.json`, executes each query against the GitHub Search API, fetches metadata (description, stars, forks, releases), and writes results to `cache/fetched.json`. The `readme` field is set to empty string for all repos — README downloading is handled later by `gh-score/src/fetch_readmes.py` in Step 7a, after the description-based pre-screen eliminates irrelevant repos.
+The script reads `cache/query.json`, executes each query against the GitHub Search API, fetches metadata (description, stars, forks, releases), and writes results to `cache/fetched.json`. The `readme` field is set to empty string for all repos.
+
+**README downloading moved to gh-score.** READMEs are fetched later by `gh-score/src/fetch_readmes.py` in Step 7a, only for repos that pass the description-based pre-screen. This saves ~50% of API calls.
 
 ### Python Script Behavior (src/fetcher.py)
 
@@ -48,11 +50,10 @@ The script reads `cache/query.json`, executes each query against the GitHub Sear
 - `GITHUB_TOKEN` env var is optional — without it, unauthenticated API (60 req/h, auto-adjusted 1.0s gap)
 - Deduplicates repos by `full_name`
 - Per-type result limits: read from `config.fetch` (`exact_limit`, `websearch_limit`, `semantic_limit`, `complexity_limit`)
-- `readme` field is empty string for all repos
+- **`readme` field is always empty** — README download is handled by `gh-score/src/fetch_readmes.py`
 - Fetches releases info for each repo
 - Progress logs to stderr only
 - Retries with exponential backoff on 5xx/SSL errors
-- `parse_repo()` accepts `with_readme: bool = True` parameter (currently always called with `False`)
 
 ## Output: cache/fetched.json
 
@@ -147,7 +148,7 @@ Seed repos are **unconditionally kept** for scoring, even if their description r
 | `releases.latest_release` | Yes | Version string (e.g. `"1.4.0"`) or `null` if no releases |
 | `releases.published_at` | Yes | ISO 8601 string or `null` |
 | `releases.days_since_last_release` | Yes | Integer or `null` — "no formal releases" is a quality signal |
-| `readme` | Yes | Full README text (decoded from base64). Empty string if repo has no README |
+| `readme` | Yes | Empty string at this stage. Filled in Step 7a by `gh-score/src/fetch_readmes.py` |
 
 ## Validation Rules (Main Skill Checks)
 
@@ -163,11 +164,11 @@ After fetch completes, the main skill validates `cache/fetched.json`:
    - `activity.pushed_at`, `activity.created_at`, `activity.updated_at`, `activity.days_since_last_push`
    - `releases.has_releases`, `releases.total_releases`
 5. **No duplicates** — each `full_name` appears only once in `repos`
-6. **README field present** — even if empty string, the key must exist
+6. **README field present** — always empty string at this stage (filled in Step 7a by gh-score)
 7. **`seed_repo_names` entries exist in `repos`** — every seed must be a valid repo in the array
 
 If validation fails:
-- If file is missing or invalid JSON → re-run `python sub-skills/gh-fetch/src/fetcher.py`
+- If file is missing or invalid JSON → re-run `python3 sub-skills/gh-fetch/src/fetcher.py`
 - If `repos` array is empty → check `GITHUB_TOKEN` is set, then re-run
 - If individual repos are missing fields → re-run (likely a parse bug in fetcher.py)
 
@@ -176,7 +177,6 @@ If validation fails:
 - **`GITHUB_TOKEN` not set** → fetcher continues with unauthenticated API (60 req/h limit, REQUEST_GAP auto-adjusted to 1.0s). Will hit 403 after ~30 requests.
 - **403 rate limit** → wait and retry (up to 3 times), then exit with warning
 - **Query returns 0 results** → log to stderr, continue to next query (do not abort)
-- **README fetch fails for a repo** → set `readme` to `""`, continue (do not abort)
 - **Releases fetch fails for a repo** → set all `releases.*` to defaults (`false`, `0`, `null`, `null`, `null`), continue (do not abort)
 - **Network error** → retry with exponential backoff (up to 3 retries per request)
 

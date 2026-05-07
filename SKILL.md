@@ -188,7 +188,7 @@ python3 sub-skills/gh-score/src/scorer.py
 - Runs 6 deterministic scorers: community(10) + trust(15) + quality(10) + momentum(5) + infrastructure(10) + purpose(30) + fit(20) = 100
 - Output: `cache/scored.json`
 
-### Step 8: Validate + Output
+### Step 8: Validate + Auto-Output
 
 ```bash
 python3 src/validate.py score
@@ -201,7 +201,7 @@ python3 src/validate.py score
 - 每个 breakdown 维度值在 0-100 范围内
 - `composite_score` 在 0-100 范围内
 
-**输出最终结果**：
+**校验通过后，必须直接输出最终结果，不要询问用户是否继续**：
 
 ```
 Top GitHub Projects for: [intent.summary]
@@ -218,6 +218,8 @@ Top GitHub Projects for: [intent.summary]
 ## Pitfalls
 
 > **⚠️ LLM only ranks, Python scores**: `rank_description.py rank` and `rank_readme.py merge` accept ordered lists only — no numeric scores. LLM outputs `[repo-a, repo-b, ...]`, scripts assign rank by position, scorer.py converts to percentile. Never let LLM assign 0-100 scores — position in list IS the ranking signal.
+>
+> **⚠️ Step 8 must auto-output**: After `validate.py score` passes, immediately output the final ranked results to the user. Do NOT stop, ask for confirmation, or wait for user input. The pipeline is complete — deliver the results.
 >
 > **⚠️ GITHUB_TOKEN not set** → 60 req/h limit. For >20 repos, expect 403 during README fetch.
 >
