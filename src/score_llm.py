@@ -111,84 +111,103 @@ def prepare() -> None:
 
 
 def merge() -> None:
-    """Read LLM scoring from stdin, merge into llm_scores.json."""
+    """Read LLM ranking from stdin, merge into llm_scores.json.
+
+    LLM only provides ORDER, not scores. Python assigns ranks by position.
+
+    Expected input format:
+    {
+      "purpose_order": ["repo-a", "repo-b", ...],  // most→least relevant to intent
+      "fit_order": ["repo-c", "repo-d", ...],       // best→worst fit for scenario
+      "reasons": {"repo-a": "...", "repo-b": "..."} // optional reasons per repo
+    }
+    """
     kept_list = load_kept()
     llm_scores = load_llm_scores()
+    kept_set = set(kept_list)
 
     raw_input = sys.stdin.read().strip()
     if not raw_input:
-        print("ERROR: No scoring input from stdin", file=sys.stderr)
+        print("ERROR: No ranking input from stdin", file=sys.stderr)
         sys.exit(1)
 
     try:
-        scoring = json.loads(raw_input)
+        data = json.loads(raw_input)
     except json.JSONDecodeError:
-        print("ERROR: Invalid JSON input", file=sys.stderr)
+        # Fallback: try parsing as list of names (purpose order only)
+        try:
+            names = json.loads(raw_input)
+            data = {"purpose_order": names, "fit_order": names, "reasons": {}}
+        except json.JSONDecodeError:
+            print("ERROR: Invalid JSON input. Expected {\"purpose_order\": [...], \"fit_order\": [...]}", file=sys.stderr)
+            sys.exit(1)
+
+    if not isinstance(data, dict):
+        print("ERROR: Input must be a JSON object", file=sys.stderr)
         sys.exit(1)
 
-    if not isinstance(scoring, list):
-        print("ERROR: Scoring must be a JSON array", file=sys.stderr)
+    purpose_order = data.get("purpose_order", [])
+    fit_order = data.get("fit_order", [])
+    reasons = data.get("reasons", {})
+
+    if not isinstance(purpose_order, list) or not purpose_order:
+        print("ERROR: purpose_order must be a non-empty list", file=sys.stderr)
+        sys.exit(1)
+    if not isinstance(fit_order, list) or not fit_order:
+        print("ERROR: fit_order must be a non-empty list", file=sys.stderr)
         sys.exit(1)
 
-    # Validate entries
-    kept_set = set(kept_list)
+    # Validate names
     errors = []
-    purpose_ranking = []
-    fit_ranking = []
+    purpose_valid = [n for n in purpose_order if n in kept_set]
+    fit_valid = [n for n in fit_order if n in kept_set]
 
-    for entry in scoring:
-        if not isinstance(entry, dict):
-            errors.append(f"Entry must be object: {entry}")
-            continue
-
-        name = entry.get("full_name", "")
+    for name in purpose_order:
         if name not in kept_set:
-            errors.append(f"Unknown repo: {name}")
-            continue
+            errors.append(f"purpose_order: unknown repo '{name}'")
+    for name in fit_order:
+        if name not in kept_set:
+            errors.append(f"fit_order: unknown repo '{name}'")
 
-        purpose = entry.get("purpose_score", 50)
-        fit = entry.get("fit_score", 50)
-        reason = entry.get("reason", "")
-
-        purpose_ranking.append({
-            "full_name": name,
-            "rank": purpose,  # Will be sorted later
-            "score": purpose,
-            "reason": reason,
-        })
-        fit_ranking.append({
-            "full_name": name,
-            "rank": fit,  # Will be sorted later
-            "score": fit,
-            "reason": reason,
-        })
+    # Add missing kept repos at the end
+    for name in kept_list:
+        if name not in purpose_valid:
+            purpose_valid.append(name)
+            errors.append(f"purpose_order: missing '{name}', added at end")
+        if name not in fit_valid:
+            fit_valid.append(name)
+            errors.append(f"fit_order: missing '{name}', added at end")
 
     if errors:
         for e in errors:
             print(f"  WARN: {e}", file=sys.stderr)
 
-    # Sort by score descending (highest = rank 1)
-    purpose_ranking.sort(key=lambda x: x.get("score", 50), reverse=True)
-    fit_ranking.sort(key=lambda x: x.get("score", 50), reverse=True)
+    # Build rankings: position in list = rank (1-based)
+    purpose_ranking = []
+    for rank, name in enumerate(purpose_valid, 1):
+        purpose_ranking.append({
+            "full_name": name,
+            "rank": rank,
+            "reason": reasons.get(name, ""),
+        })
 
-    # Assign ranks
-    for i, entry in enumerate(purpose_ranking, 1):
-        entry["rank"] = i
-        entry.pop("score", None)
-
-    for i, entry in enumerate(fit_ranking, 1):
-        entry["rank"] = i
-        entry.pop("score", None)
+    fit_ranking = []
+    for rank, name in enumerate(fit_valid, 1):
+        fit_ranking.append({
+            "full_name": name,
+            "rank": rank,
+            "reason": reasons.get(name, ""),
+        })
 
     # Update llm_scores.json (preserve existing keys)
     llm_scores["purpose_ranking"] = purpose_ranking
     llm_scores["fit_ranking"] = fit_ranking
-    
+
     # Re-merge kept_for_scoring if missing (from prescreen stage)
     if "kept_for_scoring" not in llm_scores:
         llm_scores["kept_for_scoring"] = kept_list
-    
-    # Add prescreen_ranking if missing (fallback: same as purpose for kept repos)
+
+    # Add prescreen_ranking if missing (fallback)
     if "prescreen_ranking" not in llm_scores:
         llm_scores["prescreen_ranking"] = [
             {"full_name": name, "rank": i + 1, "reason": "Pre-screened by description relevance"}
@@ -197,15 +216,15 @@ def merge() -> None:
 
     save_llm_scores(llm_scores)
 
-    print(f"✅ LLM scores merged into llm_scores.json", file=sys.stderr)
+    print(f"✅ LLM rankings merged into llm_scores.json", file=sys.stderr)
     print(f"   purpose_ranking: {len(purpose_ranking)} repos", file=sys.stderr)
     print(f"   fit_ranking: {len(fit_ranking)} repos", file=sys.stderr)
     
-    # Show top 3
     if purpose_ranking:
         print(f"\n   Top 3 by purpose:", file=sys.stderr)
         for entry in purpose_ranking[:3]:
-            print(f"     #{entry['rank']} {entry['full_name']}: {entry['reason'][:80]}", file=sys.stderr)
+            reason = entry["reason"][:80] if entry["reason"] else ""
+            print(f"     #{entry['rank']} {entry['full_name']}: {reason}", file=sys.stderr)
 
 
 def main():

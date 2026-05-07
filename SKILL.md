@@ -16,16 +16,20 @@ metadata:
 Step 1: 调用 sub-skills/gh-intents → 提取搜索参数，保存至 cache/intent.json
 Step 2: 调用 sub-skills/gh-websearch → WebSearch 补充发现知名项目
 Step 3: 合并 intent.json + websearch 结果 → cache/query.json（单一查询入口）
-Step 4: 校验 query.json → 运行 python3 src/validate.py intents
-Step 5: 调用 sub-skills/gh-fetch → 读 query.json，API 调用（Stage 1: metadata only）
-Step 5b: LLM Pre-screen → 按 description 排序，保留 top 50% + seeds → cache/kept.json
-Step 5c: gh-fetch Stage 2 → python3 fetcher.py --readmes-only --kept-list cache/kept.json
+Step 4: 校验 query.json → python3 src/validate.py intents
+Step 5: 调用 sub-skills/gh-fetch → Stage 1: metadata only (no READMEs)
+Step 5b: python3 src/prescreen.py prepare → LLM ranks → prescreen.py rank → kept.json + llm_scores.json
+Step 5c: python3 sub-skills/gh-fetch/src/fetcher.py --readmes-only --kept-list cache/kept.json
 Step 6: 校验 fetched.json → python3 src/validate.py fetch
-Step 7: 调用 sub-skills/gh-score → LLM 完整打分 + Python 评分
-Step 8: 校验 scored.json → 输出最终结果
+Step 7a: python3 src/score_llm.py prepare → LLM scores → score_llm.py merge → llm_scores.json
+Step 7a-v: python3 src/validate_llm_scores.py → verify 4 keys complete
+Step 7b: python3 sub-skills/gh-score/src/scorer.py → cache/scored.json
+Step 8: 校验 scored.json → python3 src/validate.py score → 输出最终结果
 ```
 
 > **⚠️ Pitfall: DO NOT skip steps.** Steps 1→8 must execute in order. Common mistake: jumping straight to Step 5 (fetch) after Step 1, skipping WebSearch discovery (Step 2), merge (Step 3), and validation (Step 4). The workflow is a pipeline — each step produces artifacts the next depends on. If user says "跑", run ALL steps in sequence.
+>
+> **⚠️ Pipeline pattern for LLM stages (5b + 7a)**: Both follow `prepare` → LLM input → `merge/rank` pattern. The scripts handle all JSON writing — Agent never hand-edits cache files. See [references/llm-pipeline-pattern.md](references/llm-pipeline-pattern.md).
 
 ## Step-by-Step Execution
 
@@ -80,7 +84,6 @@ python3 src/validate.py intents
 
 **不合格处理**：指出具体失败原因，要求重做。
 
-### Step 5: gh-fetch
 ### Step 5: gh-fetch (Stage 1 - Search)
 
 Run the Python fetcher to get repo info (no READMEs yet):
@@ -137,18 +140,19 @@ python src/validate.py fetch
 
 #### Step 7a: LLM ranking (standardized)
 
-Same pipeline pattern as Step 5b: `prepare` → LLM scores → `merge`.
+Same pipeline pattern as Step 5b: `prepare` → LLM orders → `merge`.
 
 ```bash
-# 1. Prepare kept repos + READMEs for LLM scoring
+# 1. Prepare kept repos + READMEs for LLM ranking
 python3 src/score_llm.py prepare
 
-# 2. LLM scores each kept repo:
-#    - purpose_score(1-100): relevance to user's intent
-#    - fit_score(1-100): fit for user's specific scenario
-#    Format: JSON array of {"full_name": "...", "purpose_score": N, "fit_score": N, "reason": "..."}
+# 2. LLM provides TWO ORDERED LISTS (no scores):
+#    Format: {"purpose_order": [...], "fit_order": [...], "reasons": {...}}
+#    - purpose_order: most→least relevant to user's intent
+#    - fit_order: best→worst fit for user's specific scenario
+#    - reasons: optional {repo_name: explanation}
 
-# 3. Feed scores back to script → merges into llm_scores.json
+# 3. Feed orderings back to script → appends to llm_scores.json
 python3 src/score_llm.py merge
 
 # 4. Validate completeness
@@ -197,7 +201,7 @@ Top GitHub Projects for: [intent.summary]
 
 ## Pitfalls
 
-> **⚠️ Step 5b and 7a must use standardized scripts**: `prescreen.py rank` writes `prescreen_ranking` + `kept_for_scoring`; `score_llm.py merge` appends `purpose_ranking` + `fit_ranking`. Both preserve existing keys — never hand-edit `llm_scores.json`. Missing any field → scorer gives 0. Use `validate_llm_scores.py` before `scorer.py`.
+> **⚠️ LLM only ranks, Python scores**: `prescreen.py rank` and `score_llm.py merge` accept ordered lists only — no numeric scores. LLM outputs `[repo-a, repo-b, ...]`, scripts assign rank by position, scorer.py converts to percentile. Never let LLM assign 0-100 scores — position in list IS the ranking signal.
 >
 > **⚠️ GITHUB_TOKEN not set** → 60 req/h limit. For >20 repos, expect 403 during README fetch.
 >
