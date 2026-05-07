@@ -121,12 +121,10 @@ python3 sub-skills/gh-score/src/rank_description.py prepare
 python3 sub-skills/gh-score/src/rank_description.py rank
 ```
 
-### Step 5c: (Removed — README fetch moved to Step 7a)
-
 ### Step 6: Validate fetched.json
 
 ```bash
-python src/validate.py fetch
+python3 src/validate.py fetch
 ```
 
 **校验规则**：
@@ -138,7 +136,7 @@ python src/validate.py fetch
 - 每个 seed 必须在 `repos` 中存在
 
 **不合格处理**：
-- 文件不存在或字段缺失 → 重新运行 `python sub-skills/gh-fetch/src/fetcher.py`
+- 文件不存在或字段缺失 → 重新运行 `python3 sub-skills/gh-fetch/src/fetcher.py`
 - 数组为空 → 检查 `GITHUB_TOKEN` 后重试
 - 个别 repo 缺字段 → 可能是 parse bug，报告具体问题
 
@@ -170,7 +168,7 @@ python3 sub-skills/gh-score/src/validate_scores.py
 #### Step 7b: Python scoring
 
 ```bash
-python sub-skills/gh-score/src/scorer.py
+python3 sub-skills/gh-score/src/scorer.py
 ```
 
 - Reads `cache/fetched.json` + `cache/llm_scores.json`
@@ -181,7 +179,7 @@ python sub-skills/gh-score/src/scorer.py
 ### Step 8: Validate + Output
 
 ```bash
-python src/validate.py score
+python3 src/validate.py score
 ```
 
 **校验规则**：

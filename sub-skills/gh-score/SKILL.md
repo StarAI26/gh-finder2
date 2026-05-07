@@ -15,155 +15,111 @@ metadata:
 ## Workflow
 
 ```
-gh-score is invoked
-  ↓
-1. Read fetched.json + intent.json
-  ↓
-2. Rank ALL repos by description → keep top 50% + seed repos
-  ↓
-3. For each kept repo, read its README → rank by purpose, rank by fit
-  ↓
-4. Save rankings to cache/llm_scores.json
-  ↓
-5. Python converts rankings to percentile scores + runs its 6 scorers → merges → outputs cache/scored.json
+Step 5b: rank_description.py prepare → LLM ranks by description → rank → kept.json
+Step 7a: fetch_readmes.py → download READMEs for kept repos only
+Step 7a: rank_readme.py prepare → LLM ranks by README → merge → llm_scores.json
+Step 7a: validate_scores.py → verify 4 keys complete
+Step 7b: scorer.py → converts rankings to percentiles + runs scorers → scored.json
 ```
 
-**You (the LLM) do steps 1-4.** Python handles step 5.
+**LLM only ranks — Python assigns scores.** Position in ordered list IS the ranking signal. Never output 0-100 scores.
 
 ---
 
-## Step 1: Read input
+## Step 5b: Description Pre-screen (via rank_description.py)
 
-Two files:
+The script handles everything. You (the LLM) only provide an ordered list.
 
-### `cache/intent.json` — what the user wants
+```bash
+# Script outputs formatted repo descriptions for you to rank:
+python sub-skills/gh-score/src/rank_description.py prepare
 
+# You respond with a JSON array: [{"full_name": "...", "rank": 1, "reason": "..."}]
+# Then feed it back to:
+python sub-skills/gh-score/src/rank_description.py rank
+```
+
+**What the script does**:
+- Reads `fetched.json` + `intent.json`
+- Outputs all repos with description, stars, language
+- You rank by relevance to `intent.summary`
+- Script applies `prescreen_keep_ratio` (0.5 = top 50%) from `config.toml`
+- Merges top 50% with seed repos → writes `kept.json`
+- Writes `prescreen_ranking` + `kept_for_scoring` to `llm_scores.json`
+
+---
+
+## Step 7a: README Ranking (via rank_readme.py)
+
+First, download READMEs only for kept repos:
+```bash
+python sub-skills/gh-score/src/fetch_readmes.py
+```
+
+Then rank based on README content:
+```bash
+# Script outputs kept repos with README previews:
+python sub-skills/gh-score/src/rank_readme.py prepare
+
+# You respond with TWO ordered lists:
+python sub-skills/gh-score/src/rank_readme.py merge
+```
+
+**Your response format**:
 ```json
 {
-  "intent": {
-    "summary": "Convert Word/DOCX documents to Markdown format",
-    "constraints": "Python preferred, no online/SaaS tools",
-    "insights": ""
-  },
-  "queries": [ ... ]
+  "purpose_order": ["repo-a", "repo-b", "repo-c", ...],
+  "fit_order": ["repo-x", "repo-y", "repo-z", ...],
+  "reasons": {"repo-a": "explanation", "repo-b": "explanation"}
 }
 ```
 
-### `cache/fetched.json` — all repos to evaluate
+**Purpose ranking**: Most→least relevant to user's intent. Question: Which project's core function best matches what the user wants?
 
-A JSON object with seed identification and a flat repo array:
+**Fit ranking**: Best→worst fit for user's specific scenario. Question: Given the user's constraints, which project is the best overall fit? Consider complexity, scope, target user, language preference.
 
-```json
-{
-  "seed_repo_names": ["mwilliamson/python-mammoth", "jgm/pandoc"],
-  "repos": [
-    {
-      "full_name": "mwilliamson/python-mammoth",
-      "description": "Converts Word .docx files to HTML and markdown",
-      "metrics": { ... },
-      "activity": { ... },
-      "releases": { ... },
-      "readme": "# mammoth\n\nConverts Word documents to Markdown..."
-    }
-  ]
-}
+**Validate before scoring**:
+```bash
+python sub-skills/gh-score/src/validate_scores.py
 ```
 
-**Seed repos** (`seed_repo_names`): These are unconditionally kept for scoring. They come from:
-- The first result of every GitHub Search API query
-- Standard-type queries (de facto standard project names)
-
-**You do NOT identify seeds yourself** — they are provided by gh-fetch. Use `kept_for_scoring` = top 50% by description ∪ `seed_repo_names`.
-
 ---
 
-## Step 2: Pre-screen + rank (description only)
+## Step 7b: Python Scoring (automatic)
 
-Read **only `description`** for every repo in `fetched.json`. Rank all repos by how well their description matches the user's intent.
-
-Then keep two groups:
-
-**Top 50%**: The highest-ranked repos by description relevance. The bottom 50% are eliminated — don't read their READMEs.
-
-**Seed repos**: Read `seed_repo_names` from `cache/fetched.json`. These are provided by gh-fetch (first result of each query + standard-type queries). Unconditionally keep them even if their description didn't rank in the top 50%.
-
-The repos that proceed to step 3 = top 50% ∪ seed repos.
-
----
-
-## Step 3: Detail ranking (README + description)
-
-For each **kept** repo (from step 2), read its `description` + `readme`. Produce two separate rankings:
-
-### Purpose ranking
-
-Rank all kept repos from **most relevant to least relevant** to the user's intent.
-
-Question: **Which project's core function best matches what the user wants?**
-
-- The #1 project does exactly what the user needs, no ambiguity
-- The #N project barely relates to the user's need
-
-You don't need to give scores. Just rank them: #1, #2, #3, ... N.
-
-### Fit ranking
-
-Rank all kept repos from **best fit to worst fit** for the user's specific scenario.
-
-Question: **Given the user's constraints and context, which project is the best overall fit?**
-
-Consider: complexity (over-engineered vs under-baked), scope (standalone tool vs library), target user, language preference.
-
-Again, just rank them: #1, #2, #3, ... N.
-
-**You output two ordered lists. Python converts them to scores.**
-
----
-
-## Step 4: Output
-
-Save your rankings to `cache/llm_scores.json`:
-
-```json
-{
-  "prescreen_ranking": [
-    {"full_name": "mwilliamson/python-mammoth", "rank": 1, "reason": "Converts Word .docx to markdown, exactly matches intent"},
-    {"full_name": "pandoc/pandoc", "rank": 2, "reason": "Universal converter, handles docx→md"},
-    {"full_name": "Zettlr/Zettlr", "rank": 45, "reason": "Note-taking app, not directly relevant"}
-  ],
-  "kept_for_scoring": ["mwilliamson/python-mammoth", "pandoc/pandoc", "jgm/pandoc", "..."],
-  "purpose_ranking": [
-    {"full_name": "mwilliamson/python-mammoth", "rank": 1, "reason": "README: 'Converts Word documents to Markdown' — exact match"},
-    {"full_name": "pandoc/pandoc", "rank": 2, "reason": "Does docx→md but also 50 other formats"},
-    {"full_name": "python-openxml/python-docx", "rank": 3, "reason": "Can read docx but doesn't convert to md out of the box"}
-  ],
-  "fit_ranking": [
-    {"full_name": "mwilliamson/python-mammoth", "rank": 1, "reason": "Simple Python library, clean API, exactly the right scope"},
-    {"full_name": "pandoc/pandoc", "rank": 2, "reason": "Powerful but overkill — user just wants docx→md"},
-    {"full_name": "python-openxml/python-docx", "rank": 3, "reason": "Good library but requires user to write conversion logic"}
-  ]
-}
+```bash
+python sub-skills/gh-score/src/scorer.py
 ```
 
-- `prescreen_ranking`: **every repo**, ranked by description relevance
-- `kept_for_scoring`: top 50% by description ∪ `seed_repo_names` from `fetched.json`
-- `purpose_ranking`: **kept repos only**, ranked #1 to #N
-- `fit_ranking`: **kept repos only**, ranked #1 to #N
+Python converts your rankings to percentile scores:
+- For a repo ranked #R out of N kept repos: Percentile = (N - R + 1) / N × 100
+- #1 → 100, middle → 50, last → ~0
 
----
+**Purpose score** (weight: 30) = percentile from purpose ranking.
+**Fit score** (weight: 20) = percentile from fit ranking.
 
-## Step 5: Python merge (automatic)
-
-Python takes your rankings and converts them to scores:
-
-**Percentile mapping**: For a repo ranked #R out of N kept repos:
-- Percentile = (N - R + 1) / N × 100
-- This maps #1 → 100, middle → 50, last → ~0
-
-**Purpose score** (weight: 30) = percentile from your purpose_ranking.
-
-**Fit score** (weight: 20) = percentile from your fit_ranking.
-
-Then Python runs its 6 deterministic scorers: community(10) + trust(15) + quality(10) + momentum(5) + infrastructure(10) + search_fit(0) = 50 total, merges everything → weighted composite → sorts → outputs `cache/scored.json`.
+Then Python runs its 6 deterministic scorers: community(10) + trust(15) + quality(10) + momentum(5) + infrastructure(10) = 50 total, merges everything → weighted composite → outputs `cache/scored.json`.
 
 Unkept repos get purpose=0, fit=0 — they can't win.
+
+---
+
+## Output: cache/llm_scores.json
+
+Produced by the `rank_description.py` and `rank_readme.py` scripts. Must contain ALL four keys:
+
+```json
+{
+  "prescreen_ranking": [{"full_name": "...", "rank": 1, "reason": "..."}],
+  "kept_for_scoring": ["repo-a", "repo-b", ...],
+  "purpose_ranking": [{"full_name": "...", "rank": 1, "reason": "..."}],
+  "fit_ranking": [{"full_name": "...", "rank": 1, "reason": "..."}]
+}
+```
+
+- `prescreen_ranking`: Every repo, ranked by description relevance (written by `rank_description.py`)
+- `kept_for_scoring`: Top 50% ∪ seeds (written by `rank_description.py`)
+- `purpose_ranking`: Kept repos only, ranked by purpose (written by `rank_readme.py merge`)
+- `fit_ranking`: Kept repos only, ranked by fit (written by `rank_readme.py merge`)
+
+**⚠️ Missing any key → scorer gives 0 for that dimension.** Always run `validate_scores.py` before `scorer.py`.

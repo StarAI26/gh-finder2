@@ -14,7 +14,9 @@ metadata:
 
 ## Role
 
-Fetch repos from GitHub Search API based on queries from `intent.json`, fetch their READMEs, save structured results to cache. This is **pure infrastructure** — no judgment, no scoring.
+Fetch repos from GitHub Search API based on queries from `cache/query.json`, grab metadata (description, stars, forks, releases), save structured results to cache. This is **pure infrastructure** — no judgment, no scoring.
+
+**README downloading is NOT fetcher's job.** READMEs are fetched later by `gh-score/src/fetch_readmes.py` in Step 7a, only for repos that pass the description-based pre-screen.
 
 ## Input
 
@@ -37,32 +39,20 @@ Run the Python fetcher:
 python sub-skills/gh-fetch/src/fetcher.py
 ```
 
-The script reads `cache/query.json`, executes each query against the GitHub Search API, fetches READMEs, and writes results to `cache/fetched.json`.
+The script reads `cache/query.json`, executes each query against the GitHub Search API, fetches metadata (description, stars, forks, releases), and writes results to `cache/fetched.json`. The `readme` field is set to empty string for all repos — README downloading is handled later by `gh-score/src/fetch_readmes.py` in Step 7a, after the description-based pre-screen eliminates irrelevant repos.
 
 ### Python Script Behavior (src/fetcher.py)
 
-**Two-Stage Fetch** (saves ~50% API calls):
-
-- **Stage 1 (default)**: `python sub-skills/gh-fetch/src/fetcher.py`
-  - Executes all queries against GitHub Search API
-  - Fetches metadata (description, stars, forks, releases) for all unique repos
-  - `readme` field is empty string — NO README downloads yet
-  - Writes `cache/fetched.json` with metadata-only repo objects
-
-- **Stage 2 (README-only)**: `python sub-skills/gh-fetch/src/fetcher.py --readmes-only --kept-list cache/kept.json`
-  - Downloads READMEs ONLY for repos listed in `kept.json`
-  - Updates `cache/fetched.json` in-place, filling `readme` field for kept repos
-  - Skips repos not in kept list (saves API quota and time)
-
-**Common behavior for both stages**:
 - Reads queries from `cache/query.json` (each has `query`, `reason`, `type`: `"exact"`/`"websearch"`/`"semantic"`/`"complexity"`)
 - For each query, calls `GET /search/repositories?q=<query>&sort=stars&order=desc&per_page=30`
 - `GITHUB_TOKEN` env var is optional — without it, unauthenticated API (60 req/h, auto-adjusted 1.0s gap)
 - Deduplicates repos by `full_name`
 - Per-type result limits: read from `config.fetch` (`exact_limit`, `websearch_limit`, `semantic_limit`, `complexity_limit`)
-- **Seed identification**: First result of every query is a seed repo. For `type: "exact"` or `type: "websearch"` queries, the first result's `full_name` must contain the query string — if not, WARN logged and result is NOT marked as seed.
+- `readme` field is empty string for all repos
+- Fetches releases info for each repo
 - Progress logs to stderr only
 - Retries with exponential backoff on 5xx/SSL errors
+- `parse_repo()` accepts `with_readme: bool = True` parameter (currently always called with `False`)
 
 ## Output: cache/fetched.json
 
