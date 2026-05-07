@@ -15,11 +15,15 @@ from pathlib import Path
 
 # Navigate up from: sub-skills/gh-score/src/rank_readme.py → project root
 ROOT = Path(__file__).resolve().parent.parent.parent.parent
+sys.path.insert(0, str(ROOT / "src"))
+from common import Config
+
+config = Config.load()
 
 
 def load_fetched():
     """Load fetched.json."""
-    path = ROOT / "cache" / "fetched.json"
+    path = config.path("fetched")
     if not path.exists():
         print("ERROR: cache/fetched.json not found", file=sys.stderr)
         sys.exit(1)
@@ -29,7 +33,7 @@ def load_fetched():
 
 def load_kept():
     """Load kept.json."""
-    path = ROOT / "cache" / "kept.json"
+    path = config.path("kept")
     if not path.exists():
         print("ERROR: cache/kept.json not found", file=sys.stderr)
         sys.exit(1)
@@ -39,7 +43,7 @@ def load_kept():
 
 def load_llm_scores():
     """Load existing llm_scores.json or create empty."""
-    path = ROOT / "cache" / "llm_scores.json"
+    path = config.path("llm_scores")
     if path.exists():
         with open(path, encoding="utf-8") as f:
             return json.load(f)
@@ -48,7 +52,7 @@ def load_llm_scores():
 
 def save_llm_scores(data):
     """Save llm_scores.json."""
-    path = ROOT / "cache" / "llm_scores.json"
+    path = config.path("llm_scores")
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
@@ -58,7 +62,7 @@ def prepare() -> None:
     """Print formatted repo + README data for LLM ranking."""
     fetched = load_fetched()
     kept_list = load_kept()
-    intent_path = ROOT / "cache" / "intent.json"
+    intent_path = config.path("intent")
 
     if not intent_path.exists():
         print("ERROR: cache/intent.json not found", file=sys.stderr)

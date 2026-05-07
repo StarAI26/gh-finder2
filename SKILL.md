@@ -11,6 +11,8 @@ metadata:
 # gh-finder2: Intent-Driven GitHub Project Discovery
 
 > **⚠️ Install the full repository.** Do NOT download only this `SKILL.md` file. The pipeline depends on `sub-skills/`, `src/`, `config.toml`, and multiple Python scripts. Clone the entire repository or copy the full directory.
+>
+> **📂 Structure**: See [STRUCTURE.md](STRUCTURE.md) for the full directory tree, data flow, and script ownership rules.
 
 ## Workflow
 

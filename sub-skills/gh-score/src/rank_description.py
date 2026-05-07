@@ -14,25 +14,20 @@ Workflow:
 
 import json
 import sys
-import tomllib
 from pathlib import Path
 
 # Navigate up from: sub-skills/gh-score/src/rank_description.py → project root
 ROOT = Path(__file__).resolve().parent.parent.parent.parent
+sys.path.insert(0, str(ROOT / "src"))
+from common import Config
 
-
-def load_config():
-    """Load scoring config for prescreen_keep_ratio."""
-    cfg_path = ROOT / "config.toml"
-    with open(cfg_path, "rb") as f:
-        raw = tomllib.load(f)
-    return raw.get("scoring", {}).get("prescreen_keep_ratio", 0.5)
+config = Config.load()
 
 
 def prepare() -> None:
     """Print formatted repo descriptions for LLM pre-screening."""
-    fetched_path = ROOT / "cache" / "fetched.json"
-    intent_path = ROOT / "cache" / "intent.json"
+    fetched_path = config.path("fetched")
+    intent_path = config.path("intent")
 
     if not fetched_path.exists():
         print("ERROR: cache/fetched.json not found", file=sys.stderr)
@@ -49,7 +44,7 @@ def prepare() -> None:
     repos = fetched.get("repos", [])
     seeds = set(fetched.get("seed_repo_names", []))
     intent_summary = intent.get("intent", {}).get("summary", "unknown")
-    keep_ratio = load_config()
+    keep_ratio = config.scoring.get("prescreen_keep_ratio", 0.5)
     keep_count = max(int(len(repos) * keep_ratio), 1)
 
     print(f"=== INTENT ===")
@@ -74,14 +69,14 @@ def prepare() -> None:
 
 def rank() -> None:
     """Read LLM ranking from stdin, validate, write kept.json."""
-    fetched_path = ROOT / "cache" / "fetched.json"
+    fetched_path = config.path("fetched")
 
     with open(fetched_path, encoding="utf-8") as f:
         fetched = json.load(f)
 
     seeds = set(fetched.get("seed_repo_names", []))
     all_names = {r["full_name"] for r in fetched.get("repos", [])}
-    keep_ratio = load_config()
+    keep_ratio = config.scoring.get("prescreen_keep_ratio", 0.5)
     keep_count = max(int(len(fetched["repos"]) * keep_ratio), 1)
 
     raw_input = sys.stdin.read().strip()
@@ -124,7 +119,7 @@ def rank() -> None:
     kept_list = sorted(kept_set)
 
     # Write kept.json
-    kept_path = ROOT / "cache" / "kept.json"
+    kept_path = config.path("kept")
     kept_path.parent.mkdir(parents=True, exist_ok=True)
     with open(kept_path, "w", encoding="utf-8") as f:
         json.dump(kept_list, f, indent=2)
@@ -138,7 +133,7 @@ def rank() -> None:
             "reason": e.get("reason", ""),
         })
 
-    llm_scores_path = ROOT / "cache" / "llm_scores.json"
+    llm_scores_path = config.path("llm_scores")
     if llm_scores_path.exists():
         with open(llm_scores_path, encoding="utf-8") as f:
             llm_scores = json.load(f)
