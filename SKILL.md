@@ -101,12 +101,21 @@ python3 sub-skills/gh-fetch/src/fetcher.py
 
 > **⚠️ Pitfall: GITHUB_TOKEN not set**. Without token, GitHub API limits to 60 req/h. The fetcher was patched to work without token (graceful degradation). For >20 repos, set `GITHUB_TOKEN` or expect 403 rate limits during README fetch.
 
-### Step 5b: LLM Pre-screen
+### Step 5b: LLM Pre-screen (standardized)
 
-1. LLM reads descriptions from `cache/fetched.json`
-2. Ranks by relevance to intent
-3. Keeps top 50% + seeds
-4. Writes `cache/kept.json` (list of `full_name` strings)
+```bash
+# 1. Prepare repo descriptions for LLM ranking
+python3 src/prescreen.py prepare
+
+# 2. LLM ranks repos by relevance to intent.summary
+#    Respond with: full_name:relevance_score(1-100):reason (one per line)
+#    OR JSON array: [{"full_name": "...", "rank": 1, "reason": "..."}]
+
+# 3. Feed ranking back to script → writes kept.json + llm_scores.json
+python3 src/prescreen.py rank
+```
+
+> **⚠️ Pitfall: Do NOT hand-write kept.json or llm_scores.json.** Always use `prescreen.py prepare` + `prescreen.py rank` pipeline. The script validates format, applies `prescreen_keep_ratio` from config, merges seeds, and writes both `kept.json` and `llm_scores.json` atomically.
 
 ### Step 5c: gh-fetch (Stage 2 - READMEs)
 
@@ -138,17 +147,20 @@ python src/validate.py fetch
 
 ### Step 7: gh-score
 
-#### Step 7a: LLM pre-screen + ranking
+#### Step 7a: LLM ranking (standardized)
 
-1. Read `cache/fetched.json` — all repos + seed identification
-2. Rank ALL repos by description relevance to intent (pre-screen)
-3. Keep = top 50% by description ∪ `seed_repo_names`
-4. For each kept repo, read `description` + `readme`, produce two rankings:
-   - **purpose ranking**: most relevant to least relevant to user's intent
-   - **fit ranking**: best fit to worst fit for user's specific scenario
-5. Save to `cache/llm_scores.json`:
+After Step 5b already wrote `prescreen_ranking` and `kept_for_scoring`, LLM must now add `purpose_ranking` and `fit_ranking` to `llm_scores.json`:
 
-> **⚠️ Pitfall: `llm_scores.json` MUST include ALL four keys**: `prescreen_ranking`, `kept_for_scoring`, `purpose_ranking`, `fit_ranking`. If `purpose_ranking` or `fit_ranking` are missing, scorer.py gives them 0 score, making even relevant repos rank poorly. Every kept repo must appear in both purpose and fit rankings.
+```bash
+# 1. Read READMEs of kept repos from fetched.json
+# 2. LLM produces two rankings:
+#    - purpose_ranking: relevance to user's intent
+#    - fit_ranking: fit for user's specific scenario
+# 3. Update llm_scores.json manually, then validate:
+python3 src/validate_llm_scores.py
+```
+
+> **⚠️ Pitfall: `llm_scores.json` MUST include ALL four keys**: `prescreen_ranking`, `kept_for_scoring`, `purpose_ranking`, `fit_ranking`. If `purpose_ranking` or `fit_ranking` are missing, scorer.py gives them 0 score, making even relevant repos rank poorly. Every kept repo must appear in both purpose and fit rankings. Use `validate_llm_scores.py` before running scorer.py — it will catch missing fields automatically.
 
 ```json
 {
@@ -207,6 +219,10 @@ Top GitHub Projects for: [intent.summary]
 
 ## Pitfalls
 
+> **⚠️ 修改代码后必须先展示 diff/关键改动，确认逻辑正确再执行**。不要改完直接跑，用户需要看到改了什么、为什么这样改。
+>
+> **⚠️ DO NOT hand-write cache files.** Steps 5b (prescreen) and 7a (llm_scores) must use standardized scripts: `python3 src/prescreen.py prepare` + `python3 src/prescreen.py rank` for pre-screening, and `python3 src/validate_llm_scores.py` for LLM scoring validation. Manual JSON editing leads to missing fields (purpose/fit rankings → scorer gives 0) and format errors.
+>
 > **⚠️ SKILL.md vs script mismatch**: `validate.py query` → `validate.py intents`。用 `python3` 而非 `python`。
 >
 > **⚠️ Fetcher 串行抓取 README，大 README 拖垮整体**：`dmgrok/agent_skills_directory` 的 README 有 158KB（自动生成 skill 目录索引），传输 + base64 解码耗时远超正常 README。应限制无关项目数量，或并发抓取。
