@@ -123,3 +123,5 @@ Produced by the `rank_description.py` and `rank_readme.py` scripts. Must contain
 - `fit_ranking`: Kept repos only, ranked by fit (written by `rank_readme.py merge`)
 
 **⚠️ Missing any key → scorer gives 0 for that dimension.** Always run `validate_scores.py` before `scorer.py`.
+
+**⚠️ scored.json must include metrics+activity**: `scorer.py` output dict must include `"metrics": repo.get("metrics", {})` and `"activity": repo.get("activity", {})` so Step 8 can display ⭐ stars, language, topics, and last-push info. Without these fields, the final output is incomplete.

@@ -1,0 +1,16 @@
+# Runtime artifacts (regenerated each run)
+cache/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

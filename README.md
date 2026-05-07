@@ -1,74 +1,53 @@
-# gh-finder2: Intent-Driven GitHub Project Discovery
+# gh-finder2
 
-Intent-driven GitHub project discovery with supervised multi-agent scoring. Tell it what you're looking for in natural language — it runs an 8-step pipeline to find, rank, and score the best matching projects.
+**Find GitHub projects by intent, not just keywords.**
 
-## Features
+An 8-step discovery pipeline that takes a natural-language description, constructs search queries, then uses **LLM ranking + Python scoring** to surface projects that actually match your needs — not just the ones with the most stars.
 
-- **Natural language input** — describe what you need, it constructs search queries
-- **WebSearch discovery** — supplements GitHub Search with web-found projects
-- **Two-stage fetching** — metadata first, READMEs only for shortlisted repos (~50% API savings)
-- **LLM ranking** — LLM provides relative order, not subjective scores
-- **Python scoring** — 7 dimensions (purpose, fit, trust, community, quality, infrastructure, momentum)
-- **Configurable weights** — tweak scoring dimensions in `config.toml`
+## Why
+
+GitHub Search ranks by stars. Searching "lightweight headless browser" returns a 94K-star test framework because it has the keyword. gh-finder2 understands your intent, ranks by relevance, and scores across 7 dimensions.
 
 ## Install
 
-This is a [Hermes Agent](https://hermes-agent.nousresearch.com) skill. Install it by cloning into your skills directory:
+**Requirements:** Python 3.11+, GITHUB_TOKEN (recommended). No `pip install` — stdlib only.
+
+**Important:** Clone the entire repository — the pipeline relies on `sub-skills/`, `src/`, and `config.toml`.
 
 ```bash
-# Default skills location
-git clone <repo-url> ~/.hermes/skills/gh-finder2
+git clone https://github.com/<you>/gh-finder2.git
+cd gh-finder2
+export GITHUB_TOKEN=ghp_your_token_here
 ```
 
-Or symlink an existing checkout:
+**With AI Agents:**
+- **Claude Code:** `claude --skill-path /path/to/SKILL.md`
+- **Hermes Agent:** `ln -s $(pwd) ~/.hermes/skills/gh-finder2`
+- **Others:** copy to your agent's skills folder or point to `SKILL.md`
 
-```bash
-ln -s /path/to/gh-finder2 ~/.hermes/skills/gh-finder2
-```
+## Usage
 
-No Python dependencies required — uses stdlib only (`tomllib`, `urllib`, `json`).
-
-## Requirements
-
-| Item | Required | Notes |
-|------|----------|-------|
-| `GITHUB_TOKEN` | ⚠️ Optional | Without it: 60 req/h (may be incomplete). With it: 5000 req/h. Set via `export GITHUB_TOKEN=ghp_xxx` |
-| Python 3.11+ | ✅ Yes | For `tomllib` (TOML config parser) |
-| Hermes Agent | ✅ Yes | The skill is designed to run within Hermes |
-| DASHSCOPE_API_KEY | ⚠️ Optional | Only if using Qwen/Alibaba LLM for ranking |
-| FIRECRAWL_API_KEY | ⚠️ Optional | Only if using Firecrawl for WebSearch |
-
-## Quick Start
+Tell your agent what you're looking for:
 
 ```
-# Just tell the agent what you want to find:
 "帮我找 Python 的异步 HTTP 客户端库"
 "Find lightweight Go web frameworks"
 "推荐一个把 Markdown 转 PDF 的 Rust 工具"
 ```
 
-The agent runs the 8-step pipeline automatically:
+## How It Works
 
-1. Extract intent → search queries
-2. WebSearch discovery
-3. Merge queries
-4. Validate + check token
-5. Fetch repo metadata
-5b. LLM ranks by description → shortlist
-6. Validate fetched data
-7a. Download READMEs + LLM ranks
-7b. Python scores + weights
-8. Output final results
+1. **Intent** → extracts search queries from natural language
+2. **WebSearch** → supplements GitHub Search with web-found projects
+3. **Fetch** → GitHub API metadata
+4. **Rank** → LLM ranks by description and README
+5. **Score** → Python computes 7 dimensions → final weighted composite
 
-## Configuration
+Scoring dimensions: purpose (30) · fit (20) · trust (15) · community (10) · quality (10) · infrastructure (10) · momentum (5)
 
-Edit [`config.toml`](config.toml) to adjust:
+## Config
 
-- **`[fetch]`** — API limits, request gaps, min stars
-- **`[scoring]`** — pre-screen keep ratio
-- **`[weights]`** — scoring dimension weights (sum = 100)
-- **`[thresholds]`** — quality gates
-- **`[paths]`** — output file paths (usually leave as-is)
+Edit `config.toml` to adjust weights, API limits, and thresholds.
 
 ## License
 

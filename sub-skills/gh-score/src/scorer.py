@@ -108,6 +108,8 @@ def main():
             "is_seed": name in seed_repo_names,
             "kept_by_llm": name in llm_kept,
             "evidence": _extract_evidence(repo),
+            "metrics": repo.get("metrics", {}),
+            "activity": repo.get("activity", {}),
         })
 
     # ── Sort + save ──

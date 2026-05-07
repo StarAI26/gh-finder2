@@ -10,6 +10,8 @@ metadata:
 
 # gh-finder2: Intent-Driven GitHub Project Discovery
 
+> **⚠️ Install the full repository.** Do NOT download only this `SKILL.md` file. The pipeline depends on `sub-skills/`, `src/`, `config.toml`, and multiple Python scripts. Clone the entire repository or copy the full directory.
+
 ## Workflow
 
 ```
@@ -257,6 +259,8 @@ python3 src/validate.py score
 >
 > **⚠️ Exact query first result may not match**: API sorts by stars, not relevance. Query `playwright` → first result was `browser-use` (92K⭐), not `microsoft/playwright` (88K⭐). Seed detection may fail — add expected repos manually if needed.
 >
+> **⚠️ fetched.json data is NESTED, not flat**: `fetcher.py` stores repo data under `metrics` and `activity` sub-objects, NOT as flat top-level keys. Correct paths: `repo["metrics"]["stars"]`, `repo["metrics"]["language"]`, `repo["metrics"]["topics"]`, `repo["activity"]["days_since_last_push"]`. If you see "null" for stars/language, you're reading the wrong path — the Search API DOES return complete data, just nested. **Also**: `scorer.py` must forward `metrics` and `activity` to `scored.json` output, otherwise Step 8 can't show ⭐/language info.
+>
 > **⚠️ SSL `UNEXPECTED_EOF_WHILE_READING` errors**: Transient — catch `ssl.SSLError` and retry, don't abort.
 
 ## Error Recovery
@@ -277,3 +281,5 @@ python3 src/validate.py score
 - **先分析再执行**: 遇到问题卡住时，先搞明白根本原因，不要盲目重试。用户偏好先理解问题再动手。
 - **Script ownership**: "Who uses it, owns it." Scripts live where their consumers live. LLM ranking + scoring scripts are under `sub-skills/gh-score/src/` because they're gh-score's responsibility, not pipeline glue.
 - See [references/github-api-query-design.md](references/github-api-query-design.md) for query design principles and why semantic queries fail on GitHub API.
+- See [references/step8-output-examples.md](references/step8-output-examples.md) for the exact Step 8 output format with real examples.
+- See [references/session-learnings.md](references/session-learnings.md) for architecture decisions and pitfalls discovered during pipeline runs.
