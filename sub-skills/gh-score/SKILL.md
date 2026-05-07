@@ -1,7 +1,7 @@
 ---
 name: gh-score
 category: devops
-version: 1.0
+version: 0.1
 description: Score and rank fetched GitHub repos using Python + LLM. / 用 Python 确定性规则 + LLM 判断对项目打分排名。
 metadata:
   hermes:

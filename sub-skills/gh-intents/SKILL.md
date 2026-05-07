@@ -1,7 +1,7 @@
 ---
 name: gh-intents
 category: meta
-version: 13.0
+version: 0.1
 description: Guide users to uncover true intent beyond surface requests via first-principles. / 引导用户跳出表象需求，通过第一性原理还原真实意图。
 metadata:
   hermes:

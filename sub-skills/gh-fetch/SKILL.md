@@ -1,7 +1,7 @@
 ---
 name: gh-fetch
 category: devops
-version: 1.0
+version: 0.1
 description: Fetch GitHub repos via Search API with caching, return structured JSON. / 通过 GitHub Search API 抓取项目，带缓存，返回结构化 JSON。
 metadata:
   hermes:
@@ -186,10 +186,6 @@ If validation fails:
 - **Relevance scoring** → LLM reads READMEs in `gh-score`
 - **Semantic extraction** → LLM does this in `gh-score`
 - **Query refinement** → Agent-driven decision, not automatic
-
-## Related Reference
-
-See [gh-finder2/references/github-api-query-design.md](../../gh-finder2/references/github-api-query-design.md) for query design principles that affect fetcher performance.
 
 ## Pitfalls
 

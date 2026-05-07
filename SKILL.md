@@ -1,7 +1,7 @@
 ---
 name: gh-finder2
 category: devops
-version: 1.0
+version: 0.1
 description: Intent-driven GitHub project discovery with supervised multi-skill flow.
 metadata:
   hermes:
@@ -31,7 +31,7 @@ Step 8: 校验 scored.json → python3 src/validate.py score → 输出最终结
 
 > **⚠️ Pitfall: DO NOT skip steps.** Steps 1→8 must execute in order. Common mistake: jumping straight to Step 5 (fetch) after Step 1, skipping WebSearch discovery (Step 2), merge (Step 3), and validation (Step 4). The workflow is a pipeline — each step produces artifacts the next depends on. If user says "跑", run ALL steps in sequence.
 >
-> **⚠️ Pipeline pattern for LLM stages (5b + 7a)**: Both follow `prepare` → LLM input → `merge/rank` pattern. The scripts handle all JSON writing — Agent never hand-edits cache files. See [references/llm-pipeline-pattern.md](references/llm-pipeline-pattern.md).
+> **⚠️ Pipeline pattern for LLM stages (5b + 7a)**: Both follow `prepare` → LLM input → `merge/rank` pattern. The scripts handle all JSON writing — Agent never hand-edits cache files.
 
 ## Step-by-Step Execution
 
@@ -280,6 +280,3 @@ python3 src/validate.py score
 
 - **先分析再执行**: 遇到问题卡住时，先搞明白根本原因，不要盲目重试。用户偏好先理解问题再动手。
 - **Script ownership**: "Who uses it, owns it." Scripts live where their consumers live. LLM ranking + scoring scripts are under `sub-skills/gh-score/src/` because they're gh-score's responsibility, not pipeline glue.
-- See [references/github-api-query-design.md](references/github-api-query-design.md) for query design principles and why semantic queries fail on GitHub API.
-- See [references/step8-output-examples.md](references/step8-output-examples.md) for the exact Step 8 output format with real examples.
-- See [references/session-learnings.md](references/session-learnings.md) for architecture decisions and pitfalls discovered during pipeline runs.

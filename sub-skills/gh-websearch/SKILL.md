@@ -1,7 +1,7 @@
 ---
 name: gh-websearch
 category: meta
-version: 1.0
+version: 0.1
 description: Use WebSearch to discover latest GitHub projects for the user's intent, extract well-known project names as exact query seeds. / 用 WebSearch 发现用户意图对应的最新 GitHub 项目，提取知名项目名作为 exact query 种子。
 metadata:
   hermes:
