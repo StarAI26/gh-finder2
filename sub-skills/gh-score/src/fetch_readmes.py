@@ -5,7 +5,7 @@ Part of the gh-score sub-skill. Downloads READMEs for repos that passed
 the description pre-screen (Step 5b), so they can be used for LLM ranking (Step 7a).
 
 Usage:
-  python sub-skills/gh-score/src/fetch_readmes.py [--readmes-only] [--kept-list PATH]
+  python sub-skills/gh-score/src/fetch_readmes.py --kept-list PATH
 
 Reads:  cache/fetched.json + cache/kept.json
 Writes: cache/fetched.json (in-place, fills in 'readme' field for kept repos)

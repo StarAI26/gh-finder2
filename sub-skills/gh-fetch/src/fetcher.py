@@ -173,7 +173,7 @@ def fetch_releases(full_name: str, headers: dict) -> dict:
 
 
 def parse_repo(full_name: str, raw: dict, headers: dict, idx: int, total: int,
-               with_readme: bool = True) -> dict:
+               with_readme: bool = False) -> dict:
     """Convert raw Search API item into structured dict per SKILL.md spec."""
     pushed_at = raw.get("pushed_at")
     updated_at = raw.get("updated_at")
